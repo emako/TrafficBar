@@ -14,8 +14,8 @@ mod update;
 
 use futures::StreamExt;
 use gpui::{
-    AnyWindowHandle, App, AppContext, Application, Bounds, Context, Global, Pixels, Render, SharedString, Size,
-    TitlebarOptions, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, px, size,
+    AnyWindowHandle, App, AppContext, Application, Bounds, Context, Global, Hsla, Pixels, Render, SharedString, Size,
+    TitlebarOptions, Window, WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, px, rgb, size,
 };
 use gpui_component::{Root, Theme, ThemeMode};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -75,6 +75,18 @@ fn setup_theme(cx: &mut App) {
     let theme = Theme::global_mut(cx);
     theme.font_size = px(14.);
     theme.font_family = crate::i18n::default_font().into();
+    if dark {
+        // The stock dark theme paints the window at #0A0A0A. Lift it, and the surfaces that
+        // share that color, so lists and popovers stay flush with the page.
+        let background: Hsla = rgb(0x141414).into();
+        theme.background = background;
+        theme.accordion = background;
+        theme.list = background;
+        theme.popover = background;
+        theme.sidebar = background;
+        theme.tab_active = background;
+        theme.table = background;
+    }
 }
 
 fn handle(cmd: UiCommand, cx: &mut App) {

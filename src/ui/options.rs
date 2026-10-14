@@ -1180,7 +1180,7 @@ impl Render for OptionsView {
 }
 
 pub fn open(tab: usize, cx: &mut App) {
-    super::open_window(Slot::Options, tr("TXT_TITLE_OPTION"), size(px(760.), px(780.)), true, cx, move |window, cx| {
+    super::open_window(Slot::Options, tr("TXT_TITLE_OPTION"), size(px(760.), px(600.)), true, cx, move |window, cx| {
         OptionsView::new(tab, window, cx)
     });
 }

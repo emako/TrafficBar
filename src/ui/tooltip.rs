@@ -186,7 +186,9 @@ fn place(hwnd: HWND, anchor: (i32, i32), lines: &[String]) {
     let widths = crate::taskbar::measure_lines(&font, FONT_PX * scale, lines);
     let text_w = widths.into_iter().max().unwrap_or(100) as f32;
     let w = (text_w + (PAD_PX * 2.0 + 10.0) * scale).ceil() as i32;
-    let h = ((lines.len().max(1) as f32 * LINE_PX + PAD_PX + 2.0) * scale).ceil() as i32;
+    // py is PAD_PX/2 on each side and the border is 1px. The popup client area still
+    // comes out a few pixels short, which clips the bottom padding, so keep some slack.
+    let h = ((lines.len().max(1) as f32 * LINE_PX + PAD_PX + 2.0 + 8.0) * scale).ceil() as i32;
     let mut mi = MONITORINFO {
         cbSize: std::mem::size_of::<MONITORINFO>() as u32,
         ..Default::default()
