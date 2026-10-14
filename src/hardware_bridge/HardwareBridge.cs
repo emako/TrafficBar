@@ -1,100 +1,173 @@
-// Out-of-process bridge to LibreHardwareMonitorLib.dll (same library and sensor rules as the
-// original OpenHardwareMonitorApi). Compiled with the C# 5 compiler that ships with .NET Framework.
+// In-process bridge to LibreHardwareMonitorLib.dll, same role as the original
+// OpenHardwareMonitorApi.dll. TrafficMonitorBar hosts the CLR and calls
+// TrafficMonitorBar.Hardware.Bridge.Dispatch; there is no helper process.
 //
-// Protocol: one command per stdin line.
-//   update  -> one JSON object line on stdout
-//   exit    -> quit
+// Dispatch argument, LF-separated:
+//   <native utf-8 buffer pointer>
+//   <capacity>
+//   <init|update|close>
+//   <payload>
+// init payload is cpu, gpu, hdd, mbd (each 0 or 1) and the LibreHardwareMonitorLib.dll
+// path, separated by tabs. Dispatch writes one JSON object into the buffer and returns 0.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace TrafficMonitorBar.Hardware
 {
-    internal static class Program
+    public static class Bridge
     {
+        private static readonly object Gate = new object();
         private static object computer;
-        private static Type hardwareTypeEnum;
-        private static Type sensorTypeEnum;
+        private static string probeDir;
+        private static bool hooked;
 
-        private static int Main(string[] args)
+        public static int Dispatch(string arg)
         {
-            bool cpu = false, gpu = false, hdd = false, mbd = false;
-            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LibreHardwareMonitorLib.dll");
-            for (int i = 0; i < args.Length; i++)
+            lock (Gate)
             {
-                switch (args[i])
+                IntPtr ptr;
+                int cap;
+                string command;
+                string payload;
+                if (!Parse(arg, out ptr, out cap, out command, out payload))
+                    return 1;
+                try
                 {
-                    case "--cpu": cpu = true; break;
-                    case "--gpu": gpu = true; break;
-                    case "--hdd": hdd = true; break;
-                    case "--mbd": mbd = true; break;
-                    case "--lhm":
-                        if (i + 1 < args.Length) dllPath = args[++i];
-                        break;
+                    EnsureHook();
+                    string json;
+                    if (command == "init")
+                        json = Init(payload);
+                    else if (command == "update")
+                        json = Collect();
+                    else if (command == "close")
+                    {
+                        CloseMonitor();
+                        json = "{}";
+                    }
+                    else
+                        json = Error("unknown command");
+                    return Write(ptr, cap, json);
+                }
+                catch (Exception ex)
+                {
+                    try { return Write(ptr, cap, Error(Unwrap(ex).Message)); }
+                    catch { return 1; }
                 }
             }
+        }
 
-            Console.OutputEncoding = new UTF8Encoding(false);
-            var stdin = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
+        private static bool Parse(string arg, out IntPtr ptr, out int cap, out string command, out string payload)
+        {
+            ptr = IntPtr.Zero;
+            cap = 0;
+            command = "";
+            payload = "";
+            if (string.IsNullOrEmpty(arg))
+                return false;
+            string[] lines = arg.Split(new char[] { '\n' }, 4);
+            if (lines.Length < 3)
+                return false;
+            ulong addr;
+            if (!ulong.TryParse(lines[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out addr))
+                return false;
+            if (!int.TryParse(lines[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out cap) || cap <= 1)
+                return false;
+            ptr = new IntPtr(unchecked((long)addr));
+            if (ptr == IntPtr.Zero)
+                return false;
+            command = lines[2].Trim();
+            payload = lines.Length > 3 ? lines[3] : "";
+            return true;
+        }
 
-            string initError = null;
+        private static int Write(IntPtr ptr, int cap, string text)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(text ?? "");
+            if (bytes.Length + 1 > cap)
+                return 2;
+            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+            Marshal.WriteByte(ptr, bytes.Length, 0);
+            return 0;
+        }
+
+        private static void EnsureHook()
+        {
+            if (hooked)
+                return;
+            hooked = true;
+            AppDomain.CurrentDomain.AssemblyResolve += Resolve;
+        }
+
+        private static Assembly Resolve(object sender, ResolveEventArgs e)
+        {
+            string file = new AssemblyName(e.Name).Name + ".dll";
+            if (!string.IsNullOrEmpty(probeDir))
+            {
+                string candidate = Path.Combine(probeDir, file);
+                if (File.Exists(candidate))
+                    return Assembly.LoadFrom(candidate);
+            }
+            string dir = Path.GetDirectoryName(typeof(Bridge).Assembly.Location);
+            if (string.IsNullOrEmpty(dir))
+                return null;
+            string local = Path.Combine(dir, file);
+            return File.Exists(local) ? Assembly.LoadFrom(local) : null;
+        }
+
+        private static string Init(string payload)
+        {
+            CloseMonitor();
+            string[] parts = (payload ?? "").Split(new char[] { '\t' }, 5);
+            if (parts.Length < 5)
+                return Error("invalid init request");
+            string dllPath = parts[4];
             try
             {
                 if (!File.Exists(dllPath))
-                    throw new FileNotFoundException("LibreHardwareMonitorLib.dll not found", dllPath);
-                string dir = Path.GetDirectoryName(Path.GetFullPath(dllPath));
-                AppDomain.CurrentDomain.AssemblyResolve += delegate (object sender, ResolveEventArgs e)
-                {
-                    string candidate = Path.Combine(dir, new AssemblyName(e.Name).Name + ".dll");
-                    return File.Exists(candidate) ? Assembly.LoadFrom(candidate) : null;
-                };
+                    return Error("LibreHardwareMonitorLib.dll not found");
+                probeDir = Path.GetDirectoryName(Path.GetFullPath(dllPath));
                 Assembly lhm = Assembly.LoadFrom(dllPath);
                 Type computerType = lhm.GetType("LibreHardwareMonitor.Hardware.Computer", true);
-                hardwareTypeEnum = lhm.GetType("LibreHardwareMonitor.Hardware.HardwareType", true);
-                sensorTypeEnum = lhm.GetType("LibreHardwareMonitor.Hardware.SensorType", true);
                 computer = Activator.CreateInstance(computerType);
-                SetProp(computer, "IsCpuEnabled", cpu);
-                SetProp(computer, "IsGpuEnabled", gpu);
-                SetProp(computer, "IsStorageEnabled", hdd);
-                SetProp(computer, "IsMotherboardEnabled", mbd);
-                computerType.GetMethod("Open", Type.EmptyTypes).Invoke(computer, null);
+                SetProp(computer, "IsCpuEnabled", parts[0] == "1");
+                SetProp(computer, "IsGpuEnabled", parts[1] == "1");
+                SetProp(computer, "IsStorageEnabled", parts[2] == "1");
+                SetProp(computer, "IsMotherboardEnabled", parts[3] == "1");
+                try
+                {
+                    computerType.GetMethod("Open", Type.EmptyTypes).Invoke(computer, null);
+                }
+                catch (Exception ex)
+                {
+                    CloseMonitor();
+                    return Error(Unwrap(ex).Message);
+                }
+                return "{}";
             }
             catch (Exception ex)
             {
-                initError = Unwrap(ex).Message;
+                CloseMonitor();
+                return Error(Unwrap(ex).Message);
             }
+        }
 
-            string line;
-            while ((line = stdin.ReadLine()) != null)
-            {
-                line = line.Trim();
-                if (line == "exit")
-                    break;
-                if (line != "update")
-                    continue;
-                string json;
-                if (initError != null)
-                {
-                    json = "{\"error\":" + Quote(initError) + "}";
-                }
-                else
-                {
-                    try { json = Collect(); }
-                    catch (Exception ex) { json = "{\"error\":" + Quote(Unwrap(ex).Message) + "}"; }
-                }
-                Console.Out.WriteLine(json);
-                Console.Out.Flush();
-            }
+        private static void CloseMonitor()
+        {
+            if (computer == null)
+                return;
+            try { computer.GetType().GetMethod("Close", Type.EmptyTypes).Invoke(computer, null); }
+            catch { }
+            computer = null;
+        }
 
-            if (computer != null)
-            {
-                try { computer.GetType().GetMethod("Close", Type.EmptyTypes).Invoke(computer, null); }
-                catch { }
-            }
-            return 0;
+        private static string Error(string message)
+        {
+            return "{\"error\":" + Quote(message) + "}";
         }
 
         private static Exception Unwrap(Exception ex)
@@ -216,6 +289,9 @@ namespace TrafficMonitorBar.Hardware
 
         private static string Collect()
         {
+            if (computer == null)
+                return Error("hardware monitor is not open");
+
             float cpuTemp = -1, cpuFreq = -1, gpuTemp = -1, gpuUsage = -1, mbdTemp = -1;
             float nvTemp = -1, amdTemp = -1, intelTemp = -1, nvUsage = -1, amdUsage = -1, intelUsage = -1;
             var cpuTemps = new Dictionary<string, float>();

@@ -9,13 +9,13 @@
 
 ## 构建
 
-需要 MSVC 工具链（Visual Studio 生成工具，含 Windows SDK）和 Rust stable（`x86_64-pc-windows-msvc`）。
+需要 MSVC 工具链（Visual Studio 生成工具，含 Windows SDK）、Rust stable（`x86_64-pc-windows-msvc`），以及系统自带的 .NET Framework 4（`csc.exe`）。
 
 ```powershell
 cargo build --release
 ```
 
-`build.rs` 会同时用系统自带的 .NET Framework `csc.exe` 编译温度监控辅助程序 `TrafficMonitorBar.Hardware.exe`，输出到 `target\<profile>\`。
+`build.rs` 会用 .NET Framework 的 `csc.exe` 编译进程内硬件监控库 `TrafficMonitorBar.Hardware.dll`，输出到 `target\<profile>\`。它的角色与原版 `OpenHardwareMonitorApi.dll` 相同：主程序在进程内加载它，再调用同目录的 `LibreHardwareMonitorLib.dll`。
 
 ## 温度监控
 

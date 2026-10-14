@@ -23,35 +23,46 @@ fn main() {
         .define("_UNICODE", None)
         .compile("tm_plugin_bridge");
 
-    build_hardware_helper();
+    build_hardware_library();
 }
 
-/// Builds `TrafficMonitorBar.Hardware.exe` next to the main executable with the C# compiler that
-/// ships with .NET Framework, so no extra SDK is needed.
-fn build_hardware_helper() {
+/// Builds `TrafficMonitorBar.Hardware.dll` next to the main executable. The main process hosts
+/// the CLR and loads this library, the same role as the original OpenHardwareMonitorApi.dll.
+fn build_hardware_library() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let Some(target_dir) = out_dir.ancestors().nth(3).map(Path::to_path_buf) else {
         return;
     };
+    let stale = target_dir.join("TrafficMonitorBar.Hardware.exe");
+    if let Err(err) = std::fs::remove_file(&stale) {
+        if stale.exists() {
+            println!("cargo:warning=could not remove stale {}: {err}", stale.display());
+        }
+    }
     let windir = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".into());
     let csc = Path::new(&windir).join(r"Microsoft.NET\Framework64\v4.0.30319\csc.exe");
     if !csc.exists() {
-        println!("cargo:warning=csc.exe not found, temperature monitoring helper was not built");
+        println!("cargo:warning=csc.exe not found, in-process hardware library was not built");
         return;
     }
-    let exe = target_dir.join("TrafficMonitorBar.Hardware.exe");
+    let dll = target_dir.join("TrafficMonitorBar.Hardware.dll");
     // csc parses forward slashes as option prefixes, so the source needs a backslash path.
     let source = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .join("src")
         .join("hardware_bridge")
         .join("HardwareBridge.cs");
-    let status = Command::new(&csc)
-        .args(["/nologo", "/target:exe", "/platform:anycpu", "/optimize+"])
-        .arg(format!("/out:{}", exe.display()))
+    let output = Command::new(&csc)
+        .args(["/nologo", "/target:library", "/platform:anycpu", "/optimize+"])
+        .arg(format!("/out:{}", dll.display()))
         .arg(source)
-        .status();
-    match status {
-        Ok(s) if s.success() => {}
-        _ => println!("cargo:warning=failed to build TrafficMonitorBar.Hardware.exe"),
+        .output();
+    match output {
+        Ok(output) if output.status.success() => {}
+        Ok(output) => {
+            let err = String::from_utf8_lossy(&output.stderr);
+            let out = String::from_utf8_lossy(&output.stdout);
+            println!("cargo:warning=failed to build TrafficMonitorBar.Hardware.dll: {err}{out}");
+        }
+        Err(err) => println!("cargo:warning=failed to start csc.exe: {err}"),
     }
 }

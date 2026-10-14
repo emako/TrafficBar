@@ -758,7 +758,7 @@ impl OptionsView {
         let status = match &hw_state {
             HardwareState::NotElevated if g.any_hardware_enabled() => Some(tr("BAR_ADMIN_REQUIRED_TIP")),
             HardwareState::DllMissing => Some(tr("BAR_HARDWARE_DLL_MISSING")),
-            HardwareState::HelperMissing => Some(tr("BAR_HARDWARE_HELPER_MISSING")),
+            HardwareState::LibraryMissing => Some(tr("BAR_HARDWARE_LIBRARY_MISSING")),
             HardwareState::Failed(e) => Some(format!("{} {e}", tr("IDS_HARDWARE_MONITOR_INIT_FAILED"))),
             _ => None,
         };

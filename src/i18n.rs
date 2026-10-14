@@ -162,7 +162,7 @@ const EXTRA: &[(&str, &str, &str)] = &[
     ("BAR_RENDER_DCOMP", "Direct2D（DirectComposition）", "Direct2D (DirectComposition)"),
     ("BAR_PLUGIN_TEXT_ONLY", "插件项目仅显示文本，不支持插件自绘。", "Plugin items show text only; plugin custom drawing is not supported."),
     ("BAR_HARDWARE_DLL_MISSING", "未找到 LibreHardwareMonitorLib.dll，温度监控不可用。", "LibreHardwareMonitorLib.dll was not found, so temperature monitoring is unavailable."),
-    ("BAR_HARDWARE_HELPER_MISSING", "未找到硬件监控辅助程序 TrafficMonitorBar.Hardware.exe。", "The hardware helper TrafficMonitorBar.Hardware.exe was not found."),
+    ("BAR_HARDWARE_LIBRARY_MISSING", "未找到硬件监控库 TrafficMonitorBar.Hardware.dll。", "The hardware library TrafficMonitorBar.Hardware.dll was not found."),
     ("BAR_FOLLOW_SYSTEM", "跟随系统", "Follow system"),
     ("BAR_DOWNLOAD", "前往下载", "Download"),
     ("BAR_CHECKING", "正在检查更新...", "Checking for updates..."),

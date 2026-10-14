@@ -3,8 +3,9 @@
 .SYNOPSIS
     编译 TrafficMonitorBar 的 release 版本。
 .DESCRIPTION
-    先结束本仓库 target\release 中正在运行的主程序和硬件辅助程序，
-    再执行 cargo build --release。不会启动程序。
+    先结束本仓库 target\release 中正在运行的主程序和旧版硬件辅助程序，
+    再执行 cargo build --release，并删除遗留的 TrafficMonitorBar.Hardware.exe。
+    不会启动程序。
 #>
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -45,6 +46,10 @@ if ($running.Count -gt 0) {
 & cargo build --release
 if ($LASTEXITCODE -ne 0) {
     throw "cargo build --release 失败，退出码 $LASTEXITCODE"
+}
+
+if (Test-Path -LiteralPath $helper) {
+    Remove-Item -LiteralPath $helper -Force
 }
 
 Write-Host "已生成 $exe"
