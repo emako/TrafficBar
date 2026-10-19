@@ -1,4 +1,4 @@
-﻿//! "检查更新" against this program's Velopack release feed on GitHub or Gitee.
+﻿//! Check for updates against this program's Velopack release feed on GitHub or Gitee.
 //! URLs can be overridden in config.ini (`[app] update_url_github/gitee`).
 
 use std::sync::atomic::{AtomicI16, Ordering};

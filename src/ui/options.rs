@@ -1,4 +1,4 @@
-﻿//! "选项设置" (`COptionsDlg`) with the taskbar window page (`CTaskBarSettingsDlg`) and the
+﻿//! Options (`COptionsDlg`) with the taskbar window page (`CTaskBarSettingsDlg`) and the
 //! general page (`CGeneralSettingsDlg`). The main window page of the original does not exist here.
 
 use gpui::{

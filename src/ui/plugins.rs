@@ -1,4 +1,4 @@
-﻿//! "插件管理" (`CPluginManagerDlg`) and "插件详细信息" (`CPluginInfoDlg`).
+﻿//! Plugin manager (`CPluginManagerDlg`) and plugin details (`CPluginInfoDlg`).
 
 use gpui::{
     App, Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement, Styled, Window,

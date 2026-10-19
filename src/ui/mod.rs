@@ -191,7 +191,7 @@ pub fn hwnd_of(window: &Window) -> isize {
     }
 }
 
-/// Sets the taskbar-button / Alt+Tab icon to "图标 1" matching the taskbar theme.
+/// Sets the taskbar-button / Alt+Tab icon to the notify icon that matches the taskbar theme.
 pub fn set_window_icon(hwnd: HWND) {
     let light = crate::win::system_uses_light_theme();
     unsafe {

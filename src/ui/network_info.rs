@@ -1,4 +1,4 @@
-﻿//! "连接详情" (`CNetworkInfoDlg`).
+﻿//! Connection details (`CNetworkInfoDlg`).
 
 use gpui::{
     App, AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render, SharedString, Styled, Window,

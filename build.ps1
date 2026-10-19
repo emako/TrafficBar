@@ -1,11 +1,11 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    编译 TrafficBar 的 release 版本。
+    Build the TrafficBar release binary.
 .DESCRIPTION
-    先结束本仓库 target\release 中正在运行的主程序和旧版硬件辅助程序，
-    再执行 cargo build --release，并删除遗留的 TrafficBar.Hardware.exe。
-    不会启动程序。
+    Stops this repo's running target\release process and the old hardware helper,
+    then runs cargo build --release and deletes a leftover TrafficBar.Hardware.exe.
+    Does not start the program.
 #>
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest

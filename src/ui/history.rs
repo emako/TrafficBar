@@ -1,4 +1,4 @@
-﻿//! "历史流量统计" (`CHistoryTrafficDlg`): list view and calendar view.
+﻿//! Traffic history (`CHistoryTrafficDlg`): list view and calendar view.
 
 use chrono::{Datelike, NaiveDate};
 use gpui::{

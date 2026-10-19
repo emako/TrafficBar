@@ -1,9 +1,9 @@
 #include <winres.h>
 
-// PE icon: "图标 2" of the original (blue, readable on dark and light backgrounds)
+// PE icon: the original blue icon, readable on dark and light backgrounds
 1 ICON "icons/app.ico"
 
-// Runtime icon: "图标 1" for dark taskbars / light taskbars
+// Runtime icon: notify icon for dark taskbars / light taskbars
 101 ICON "icons/notify_dark.ico"
 102 ICON "icons/notify_light.ico"
 

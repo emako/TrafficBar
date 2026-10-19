@@ -1,4 +1,4 @@
-﻿//! "关于" (`CAboutDlg`).
+﻿//! About (`CAboutDlg`).
 
 use gpui::{App, Context, IntoElement, ParentElement, Render, Styled, Window, div, px, size};
 use gpui_component::link::Link;

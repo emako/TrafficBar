@@ -1,4 +1,4 @@
-﻿//! "显示设置" (`CSetItemOrderDlg`): which items the taskbar window shows and in what order.
+﻿//! Display settings (`CSetItemOrderDlg`): which items the taskbar window shows and in what order.
 
 use gpui::{
     AnyElement, App, Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement,

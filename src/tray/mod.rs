@@ -36,7 +36,7 @@ thread_local! {
     static TRAY: RefCell<Option<Tray>> = const { RefCell::new(None) };
 }
 
-/// Loads "图标 1" for the given taskbar theme: the white icon for dark taskbars and the black
+/// Loads the notify icon for the given taskbar theme: the white icon for dark taskbars and the black
 /// one for light taskbars (`AutoSelectNotifyIcon`).
 pub fn load_notify_icon(light: bool, size: i32) -> HICON {
     let id = if light { IDI_NOTIFY_LIGHT } else { IDI_NOTIFY_DARK };
