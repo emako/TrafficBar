@@ -28,7 +28,7 @@ public static class Bridge
     {
         lock (Gate)
         {
-            if (!Parse(arg, out IntPtr ptr, out int cap, out string command, out string payload))
+            if (!Parse(arg, out nint ptr, out int cap, out string command, out string payload))
                 return 1;
             try
             {
@@ -55,12 +55,12 @@ public static class Bridge
         }
     }
 
-    private static bool Parse(string arg, out IntPtr ptr, out int cap, out string command, out string payload)
+    private static bool Parse(string arg, out nint ptr, out int cap, out string command, out string payload)
     {
         ptr = IntPtr.Zero;
         cap = 0;
-        command = "";
-        payload = "";
+        command = string.Empty;
+        payload = string.Empty;
         if (string.IsNullOrEmpty(arg))
             return false;
         string[] lines = arg.Split(['\n'], 4);
@@ -70,17 +70,17 @@ public static class Bridge
             return false;
         if (!int.TryParse(lines[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out cap) || cap <= 1)
             return false;
-        ptr = new IntPtr(unchecked((long)addr));
+        ptr = (nint)addr;
         if (ptr == IntPtr.Zero)
             return false;
         command = lines[2].Trim();
-        payload = lines.Length > 3 ? lines[3] : "";
+        payload = lines.Length > 3 ? lines[3] : string.Empty;
         return true;
     }
 
-    private static int Write(IntPtr ptr, int cap, string text)
+    private static int Write(nint ptr, int cap, string text)
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(text ?? "");
+        byte[] bytes = Encoding.UTF8.GetBytes(text ?? string.Empty);
         if (bytes.Length + 1 > cap)
             return 2;
         Marshal.Copy(bytes, 0, ptr, bytes.Length);
@@ -115,7 +115,7 @@ public static class Bridge
     private static string Init(string payload)
     {
         CloseMonitor();
-        string[] parts = (payload ?? "").Split(['\t'], 5);
+        string[] parts = (payload ?? string.Empty).Split(['\t'], 5);
         if (parts.Length < 5)
             return Error("invalid init request");
         string dllPath = parts[4];
@@ -198,7 +198,7 @@ public static class Bridge
 
     private static string Str(object o)
     {
-        return o == null ? "" : o.ToString();
+        return o == null ? string.Empty : o.ToString();
     }
 
     private static void Update(object hw)
@@ -398,7 +398,7 @@ public static class Bridge
     private static string Quote(string s)
     {
         var sb = new StringBuilder("\"");
-        foreach (char c in s ?? "")
+        foreach (char c in s ?? string.Empty)
         {
             switch (c)
             {
