@@ -666,7 +666,8 @@ impl OptionsView {
                 },
                 cx,
             ))
-            .child(muted(tr("TXT_EFFICIENCY_MODE_TIP"), cx))
+            .child(muted(tr("TXT_EFFICIENCY_MODE_TIP"), cx).w(px(400.)).whitespace_normal())
+            .w_full()
             .into_any_element()
     }
 
@@ -687,6 +688,7 @@ impl OptionsView {
             .child(row().child(button("open-config-dir", tr_plain("TXT_OPEN_CONFIG_PATH_BUTTON"), false, move |_, _| {
                 crate::win::shell_open(&dir.to_string_lossy());
             })))
+            .w_full()
             .into_any_element()
     }
 
@@ -1164,7 +1166,7 @@ impl Render for OptionsView {
                     .gap_3()
                     .items_start()
                     .child(div().flex_1().child(self.app_group(&me, cx)))
-                    .child(div().flex_1().child(self.data_group(&me, cx)))
+                    .child(div().w(px(260.)).flex_shrink_0().child(self.data_group(&me, cx)))
                     .into_any_element(),
                 self.auto_run_group(&me, cx),
                 self.notify_group(&me, window, cx),
