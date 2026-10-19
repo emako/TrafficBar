@@ -25,7 +25,7 @@ cargo build --release
 .\pack.ps1
 ```
 
-脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficMonitorBar.exe` 与 `TrafficMonitorBar.Hardware.dll` 打成安装包，输出到 `Releases\`：
+脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficMonitorBar.exe` 与 `TrafficMonitorBar.Hardware.dll` 打成安装包，输出到 `target\setup\`：
 
 | 文件 | 用途 |
 | --- | --- |

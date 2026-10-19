@@ -23,7 +23,7 @@ $msiVersion = "$version.0"
 
 $releaseDir = Join-Path $PSScriptRoot "target\release"
 $packDir = Join-Path $PSScriptRoot "target\pack"
-$outDir = Join-Path $PSScriptRoot "Releases"
+$outDir = Join-Path $PSScriptRoot "target\setup"
 $exeName = "TrafficMonitorBar.exe"
 $dllName = "TrafficMonitorBar.Hardware.dll"
 $exe = Join-Path $releaseDir $exeName
@@ -70,7 +70,7 @@ $framework = "net472,vcredist143-x64"
     --outputDir $outDir
 
 if ($LASTEXITCODE -ne 0) {
-    throw "vpk pack failed with exit code $LASTEXITCODE (bump Cargo.toml version or remove the existing release under Releases\ to re-pack the same version)"
+    throw "vpk pack failed with exit code $LASTEXITCODE (bump Cargo.toml version or remove the existing release under target\setup\ to re-pack the same version)"
 }
 
 Write-Host "Output: $outDir"
