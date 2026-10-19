@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Pack TrafficMonitorBar with Velopack (Setup.exe, MSI, update feed).
