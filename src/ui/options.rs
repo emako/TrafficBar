@@ -2,7 +2,8 @@
 //! general page (`CGeneralSettingsDlg`). The main window page of the original does not exist here.
 
 use gpui::{
-    AnyElement, App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render, Styled,
+    AnyElement, App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement,
+    Styled,
     Subscription, WeakEntity, Window, div, prelude::FluentBuilder, px, size,
 };
 use gpui_component::button::Button;
@@ -371,7 +372,7 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn display_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn display_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>, width: gpui::Pixels) -> AnyElement {
         let t = &self.draft.taskbar;
         let m = me.clone();
         let memory_options = vec![tr("IDS_USAGE_PERCENTAGE"), tr("IDS_MEMORY_USED"), tr("IDS_MEMORY_AVAILABLE")];
@@ -384,7 +385,7 @@ impl OptionsView {
                 }, cx)
             };
         }
-        group(tr("TXT_DISPLAY_SETTINGS"), cx)
+        group(tr("TXT_DISPLAY_SETTINGS"), cx).w(width).max_w(width).min_w(px(0.))
             .child(
                 row()
                     .child(button("display-text", tr_plain("TXT_DISPLAY_TEXT_SETTING_BUTTON"), false, {
@@ -438,7 +439,7 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn unit_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn unit_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>, width: gpui::Pixels) -> AnyElement {
         let t = &self.draft.taskbar;
         let m = me.clone();
         let unit_suffix = if t.unit_byte { "B/s" } else { "b/s" };
@@ -447,7 +448,7 @@ impl OptionsView {
             format!("{} K{}", tr("IDS_FIXED_AS"), unit_suffix),
             format!("{} M{}", tr("IDS_FIXED_AS"), unit_suffix),
         ];
-        group(tr("TXT_UNIT_SETTINGS"), cx)
+        group(tr("TXT_UNIT_SETTINGS"), cx).w(width).max_w(width).min_w(px(0.))
             .child(
                 row()
                     .child(label(tr("TXT_NETSPEED_UNIT")))
@@ -608,7 +609,7 @@ impl OptionsView {
 
     // ----------------------------------------------------------------- general page
 
-    fn app_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn app_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>, width: gpui::Pixels) -> AnyElement {
         let g = &self.draft.general;
         let m = me.clone();
         let language_ids: Vec<String> = crate::i18n::choices().into_iter().map(|(id, _)| id).collect();
@@ -616,7 +617,7 @@ impl OptionsView {
         languages.extend(crate::i18n::choices().into_iter().map(|(_, name)| name));
         let lang_index = crate::i18n::choice_index(&g.language);
         let checking = state::with(|s| s.checking_update);
-        group(tr("TXT_APPLICATION_SETTINGS"), cx)
+        group(tr("TXT_APPLICATION_SETTINGS"), cx).w(width).max_w(width).min_w(px(0.))
             .child(
                 row()
                     .child(check("check-update", tr("TXT_CHECK_UPDATE"), g.check_update_when_start, false, false, {
@@ -671,12 +672,12 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn data_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn data_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>, width: gpui::Pixels) -> AnyElement {
         let g = &self.draft.general;
         let m = me.clone();
         let writable = state::with(|s| s.exe_dir_writable);
         let dir = self.draft.config_dir.clone();
-        group(tr("TXT_CONFIGURATION_AND_DATA_FILES"), cx)
+        group(tr("TXT_CONFIGURATION_AND_DATA_FILES"), cx).w(width).max_w(width).min_w(px(0.))
             .child(radio("save-appdata", tr("TXT_SAVE_TO_APPDATA_RADIO"), !g.portable_mode, false, {
                 let m = m.clone();
                 move |w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.portable_mode = false)
@@ -1147,14 +1148,18 @@ impl Render for OptionsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let me = cx.entity().downgrade();
         let tab_me = me.clone();
+        let page_w = window.viewport_size().width;
+        let side_gap = px(16.);
+        let side_w = px(230.);
+        let main_w = (page_w - px(48.) - side_gap - side_w).max(px(280.));
         let page: Vec<AnyElement> = if self.tab == 0 {
             vec![
                 self.color_font_group(&me, window, cx),
                 h_flex()
-                    .gap_3()
+                    .gap(side_gap)
                     .items_start()
-                    .child(div().flex_1().child(self.display_group(&me, window, cx)))
-                    .child(div().w(px(260.)).child(self.unit_group(&me, cx)))
+                    .child(self.display_group(&me, window, cx, main_w))
+                    .child(self.unit_group(&me, cx, side_w))
                     .into_any_element(),
                 self.taskbar_wnd_group(&me, cx),
                 self.graph_group(&me, window, cx),
@@ -1163,10 +1168,10 @@ impl Render for OptionsView {
         } else {
             vec![
                 h_flex()
-                    .gap_3()
+                    .gap(side_gap)
                     .items_start()
-                    .child(div().flex_1().child(self.app_group(&me, cx)))
-                    .child(div().w(px(260.)).flex_shrink_0().child(self.data_group(&me, cx)))
+                    .child(self.app_group(&me, cx, main_w))
+                    .child(self.data_group(&me, cx, side_w))
                     .into_any_element(),
                 self.auto_run_group(&me, cx),
                 self.notify_group(&me, window, cx),
@@ -1193,9 +1198,9 @@ impl Render for OptionsView {
                     .id(("options-page", self.tab))
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scrollbar()
+                    .overflow_y_scroll()
                     .p_4()
-                    .gap_3()
+                    .gap_4()
                     .children(page),
             )
             .child(footer(
