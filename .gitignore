@@ -1,2 +1,5 @@
 /target
 *.log
+.vs
+**/bin
+**/obj
