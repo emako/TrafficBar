@@ -1,6 +1,6 @@
 [package]
 name = "traffic-bar"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "TrafficMonitor taskbar window rewritten with Rust + GPUI"
 license = "MIT"

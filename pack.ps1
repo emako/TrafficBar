@@ -73,5 +73,43 @@ if ($LASTEXITCODE -ne 0) {
     throw "vpk pack failed with exit code $LASTEXITCODE (bump Cargo.toml version or remove the existing release under target\setup\ to re-pack the same version)"
 }
 
+# vpk names these from packId + channel. Publish names include the Cargo version and arch.
+$distBase = "TrafficBar-$version-x64"
+$renames = @(
+    @{ From = @("TrafficBar-win-Setup.exe", "TrafficBar-Setup.exe"); To = "$distBase.exe" },
+    @{ From = @("TrafficBar-win.msi", "TrafficBar.msi"); To = "$distBase.msi" },
+    @{ From = @("TrafficBar-win-Portable.zip", "TrafficBar-Portable.zip"); To = "$distBase.zip" }
+)
+
+$applied = New-Object System.Collections.Generic.List[object]
+foreach ($rename in $renames) {
+    $sourceName = $null
+    foreach ($candidate in $rename.From) {
+        if (Test-Path -LiteralPath (Join-Path $outDir $candidate)) {
+            $sourceName = $candidate
+            break
+        }
+    }
+    if (-not $sourceName) {
+        $listing = (Get-ChildItem -LiteralPath $outDir -File | ForEach-Object { $_.Name }) -join ", "
+        throw "Missing pack output (tried: $($rename.From -join ', ')). Found: $listing"
+    }
+    $dest = Join-Path $outDir $rename.To
+    if ((Join-Path $outDir $sourceName) -ne $dest -and (Test-Path -LiteralPath $dest)) {
+        Remove-Item -LiteralPath $dest -Force
+    }
+    Rename-Item -LiteralPath (Join-Path $outDir $sourceName) -NewName $rename.To
+    $applied.Add([pscustomobject]@{ From = $sourceName; To = $rename.To }) | Out-Null
+}
+
+$utf8 = New-Object System.Text.UTF8Encoding $false
+Get-ChildItem -LiteralPath $outDir -Filter "assets*.json" -File | ForEach-Object {
+    $json = [System.IO.File]::ReadAllText($_.FullName)
+    foreach ($rename in $applied) {
+        $json = $json.Replace([string]$rename.From, [string]$rename.To)
+    }
+    [System.IO.File]::WriteAllText($_.FullName, $json, $utf8)
+}
+
 Write-Host "Output: $outDir"
 Get-ChildItem -LiteralPath $outDir | ForEach-Object { Write-Host ("  " + $_.Name) }

@@ -27,12 +27,14 @@ cargo build --release
 
 脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficBar.exe` 与 `TrafficBar.Hardware.dll` 打成安装包，输出到 `target\setup\`：
 
+安装包文件名里的版本取自 `Cargo.toml`。当前版本的三个发布文件是：
+
 | 文件 | 用途 |
 | --- | --- |
-| `TrafficBar-win-Setup.exe` | 一键安装（当前用户，`%LocalAppData%\TrafficBar`） |
-| `TrafficBar-win.msi` | MSI，当前用户安装 |
+| `TrafficBar-1.0.0-x64.exe` | 一键安装（当前用户，`%LocalAppData%\TrafficBar`） |
+| `TrafficBar-1.0.0-x64.msi` | MSI，当前用户安装 |
+| `TrafficBar-1.0.0-x64.zip` | 可选，不经安装直接解压运行 |
 | `releases.win.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源 |
-| `TrafficBar-win-Portable.zip` | 可选，不经安装直接解压运行 |
 
 发布到 GitHub / Gitee Release 时请附上上述安装包与更新源文件。安装包目前未代码签名，SmartScreen 可能拦截。
 
