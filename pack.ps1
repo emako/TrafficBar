@@ -51,7 +51,9 @@ if ($LASTEXITCODE -ne 0) {
 # VC++ 2022 x64; use vcredist145-x64 when linking against VS 2026 toolsets.
 $framework = "net472,vcredist143-x64"
 
-& vpk pack `
+# -x turns off the interactive overwrite prompt; -y answers yes.
+# Re-packing the same Cargo version otherwise stops at [y/n] (default n).
+& vpk pack -xy `
     --packId TrafficBar `
     --packVersion $version `
     --packDir $packDir `
@@ -67,7 +69,7 @@ $framework = "net472,vcredist143-x64"
     --outputDir $outDir
 
 if ($LASTEXITCODE -ne 0) {
-    throw "vpk pack failed with exit code $LASTEXITCODE (bump Cargo.toml version or remove the existing release under target\setup\ to re-pack the same version)"
+    throw "vpk pack failed with exit code $LASTEXITCODE"
 }
 
 # vpk names these from packId + channel. Publish names include the Cargo version and arch.
