@@ -14,7 +14,7 @@ use gpui_component::{Sizable, WindowExt, h_flex, scroll::ScrollableElement, v_fl
 
 use super::common::{
     admin_mark, button, check, choice, colorref_to_hsla, footer, group, hsla_to_colorref, label, muted, primary_button,
-    radio, row, stepper,
+    radio, row, stepper, StepperSet,
 };
 use super::display_settings::{hardware_filter, ItemOrderModel};
 use super::Slot;
@@ -39,6 +39,7 @@ pub struct OptionsView {
     style_modified: bool,
     font_input: Entity<InputState>,
     exe_input: Entity<InputState>,
+    steppers: Entity<StepperSet>,
     text_color: Entity<ColorPickerState>,
     back_color: Entity<ColorPickerState>,
     graph_color: Entity<ColorPickerState>,
@@ -72,6 +73,7 @@ impl OptionsView {
         let exe = draft.taskbar.double_click_exe.clone();
         let font_input = cx.new(|cx| InputState::new(window, cx).default_value(font_name));
         let exe_input = cx.new(|cx| InputState::new(window, cx).default_value(exe));
+        let steppers = cx.new(|_cx| StepperSet::default());
         let first_label = draft.taskbar.text_colors.get(&ItemKey::Builtin(DisplayItem::Up)).map(|c| c.label).unwrap_or(0xFFFFFF);
         let text_color = cx.new(|cx| ColorPickerState::new(window, cx).default_value(colorref_to_hsla(first_label)));
         let back_color = cx.new(|cx| ColorPickerState::new(window, cx).default_value(colorref_to_hsla(draft.taskbar.back_color)));
@@ -132,6 +134,7 @@ impl OptionsView {
             style_modified: false,
             font_input,
             exe_input,
+            steppers,
             text_color,
             back_color,
             graph_color,
@@ -205,7 +208,7 @@ impl OptionsView {
 
     // ----------------------------------------------------------------- taskbar page
 
-    fn color_font_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn color_font_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let t = &self.draft.taskbar;
         let rt = self.rt.clone();
         let m = me.clone();
@@ -214,10 +217,10 @@ impl OptionsView {
             .child(label(tr("TXT_FONT")))
             .child(div().w(px(180.)).child(Input::new(&self.font_input).small()))
             .child(label(tr("TXT_FONT_SIZE")))
-            .child(stepper("font-size", font.size, 5, 72, 1, false, {
+            .child(stepper(&self.steppers, "font-size", font.size, 5, 72, 1, false, {
                 let m = m.clone();
                 move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.taskbar.font.size = v)
-            }, cx))
+            }, window, cx))
             .child(check("font-bold", "B", font.bold, false, false, {
                 let m = m.clone();
                 move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.taskbar.font.bold = v)
@@ -353,7 +356,7 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn display_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn display_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let t = &self.draft.taskbar;
         let m = me.clone();
         let memory_options = vec![tr("IDS_USAGE_PERCENTAGE"), tr("IDS_MEMORY_USED"), tr("IDS_MEMORY_AVAILABLE")];
@@ -405,16 +408,16 @@ impl OptionsView {
             .child(
                 row()
                     .child(label(tr("TXT_ITEM_SPACING")))
-                    .child(stepper("item-space", t.item_space, 0, 32, 1, false, {
+                    .child(stepper(&self.steppers, "item-space", t.item_space, 0, 32, 1, false, {
                         let m = m.clone();
                         move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.taskbar.item_space = v)
-                    }, cx))
+                    }, window, cx))
                     .child(label(tr("TXT_PIXELS")))
                     .child(label(tr("TXT_VERTICAL_MARGIN")))
-                    .child(stepper("vertical-margin", t.vertical_margin, -10, 10, 1, t.horizontal_arrange, {
+                    .child(stepper(&self.steppers, "vertical-margin", t.vertical_margin, -10, 10, 1, t.horizontal_arrange, {
                         let m = m.clone();
                         move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.taskbar.vertical_margin = v)
-                    }, cx))
+                    }, window, cx))
                     .child(label(tr("TXT_PIXELS"))),
             )
             .into_any_element()
@@ -509,7 +512,7 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn graph_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn graph_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let t = &self.draft.taskbar;
         let m = me.clone();
         let any_graph = t.show_status_bar || t.show_netspeed_figure;
@@ -532,10 +535,10 @@ impl OptionsView {
             .child(
                 row()
                     .child(label(tr("TXT_NET_SPEED_GRAPH_MAX_VALUE")))
-                    .child(stepper("netspeed-max", t.netspeed_figure_max_value, 1, 1024, 1, !t.show_netspeed_figure, {
+                    .child(stepper(&self.steppers, "netspeed-max", t.netspeed_figure_max_value, 1, 1024, 1, !t.show_netspeed_figure, {
                         let m = m.clone();
                         move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.taskbar.netspeed_figure_max_value = v)
-                    }, cx))
+                    }, window, cx))
                     .child(choice(
                         "netspeed-max-unit",
                         vec!["KB".into(), "MB".into()],
@@ -680,7 +683,7 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn notify_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn notify_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let g = &self.draft.general;
         let m = me.clone();
         let mut grp = group(tr("TXT_NOTIFICATION_MESSAGE"), cx).child(
@@ -689,10 +692,10 @@ impl OptionsView {
                     let m = m.clone();
                     move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.traffic_tip_enable = v)
                 }, cx))
-                .child(stepper("traffic-tip-value", g.traffic_tip_value, 1, 1_000_000, 10, !g.traffic_tip_enable, {
+                .child(stepper(&self.steppers, "traffic-tip-value", g.traffic_tip_value, 1, 1_000_000, 10, !g.traffic_tip_enable, {
                     let m = m.clone();
                     move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.traffic_tip_value = v)
-                }, cx))
+                }, window, cx))
                 .child(choice("traffic-tip-unit", vec!["MB".into(), "GB".into()], g.traffic_tip_unit.clamp(0, 1) as usize, !g.traffic_tip_enable, {
                     let m = m.clone();
                     move |i, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.traffic_tip_unit = i as i32)
@@ -715,9 +718,9 @@ impl OptionsView {
                     .child(check(id, tr(key), tip.enable, false, needs_admin, move |v, w, cx| {
                         Self::update(&m1, w, cx, |s, _, _| field(&mut s.draft).enable = v)
                     }, cx))
-                    .child(stepper(format!("{id}-value"), tip.tip_value, 1, max, 1, !tip.enable, move |v, w, cx| {
+                    .child(stepper(&self.steppers, format!("{id}-value"), tip.tip_value, 1, max, 1, !tip.enable, move |v, w, cx| {
                         Self::update(&m2, w, cx, |s, _, _| field(&mut s.draft).tip_value = v)
-                    }, cx))
+                    }, window, cx))
                     .child(label(tr(back))),
             );
         }
@@ -790,7 +793,7 @@ impl OptionsView {
             .into_any_element()
     }
 
-    fn advanced_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
+    fn advanced_group(&self, me: &WeakEntity<Self>, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let g = &self.draft.general;
         let m = me.clone();
         group(tr("TXT_ADVANCED"), cx)
@@ -818,10 +821,10 @@ impl OptionsView {
             .child(
                 row()
                     .child(label(tr("TXT_MONITORING_INTERVALS")))
-                    .child(stepper("interval", g.monitor_time_span, MONITOR_TIME_SPAN_MIN, MONITOR_TIME_SPAN_MAX, 100, false, {
+                    .child(stepper(&self.steppers, "interval", g.monitor_time_span, MONITOR_TIME_SPAN_MIN, MONITOR_TIME_SPAN_MAX, 100, false, {
                         let m = m.clone();
                         move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.monitor_time_span = v)
-                    }, cx))
+                    }, window, cx))
                     .child(label(tr("TXT_MILLISECONDS")))
                     .child(button("interval-default", tr_plain("TXT_RESTORE_DEFAULT_TIME_SPAN_BUTTON"), false, {
                         let m = m.clone();
@@ -1019,8 +1022,9 @@ impl OptionsView {
 
     fn open_win11(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let me = cx.entity().downgrade();
-        window.open_dialog(cx, move |dialog, _, cx| {
+        window.open_dialog(cx, move |dialog, window, cx| {
             let Some(view) = me.upgrade() else { return dialog };
+            let host = view.read(cx).steppers.clone();
             let t = view.read(cx).draft.taskbar.clone();
             let (m1, m2, m3, m4, m5, m6) = (me.clone(), me.clone(), me.clone(), me.clone(), me.clone(), me.clone());
             dialog
@@ -1035,17 +1039,17 @@ impl OptionsView {
                         .child(
                             row()
                                 .child(label(tr("TXT_WINDOW_VERTICAL_OFFSET")))
-                                .child(stepper("offset-top", t.window_offset_top, -20, 20, 1, false, move |v, w, cx| {
+                                .child(stepper(&host, "offset-top", t.window_offset_top, -20, 20, 1, false, move |v, w, cx| {
                                     Self::update(&m2, w, cx, |s, _, _| s.draft.taskbar.window_offset_top = v)
-                                }, cx))
+                                }, window, cx))
                                 .child(label(tr("TXT_PIXELS"))),
                         )
                         .child(
                             row()
                                 .child(label(tr("TXT_WINDOW_HORIZONTAL_OFFSET")))
-                                .child(stepper("offset-left", t.window_offset_left, -800, 800, 1, false, move |v, w, cx| {
+                                .child(stepper(&host, "offset-left", t.window_offset_left, -800, 800, 1, false, move |v, w, cx| {
                                     Self::update(&m3, w, cx, |s, _, _| s.draft.taskbar.window_offset_left = v)
-                                }, cx))
+                                }, window, cx))
                                 .child(label(tr("TXT_PIXELS"))),
                         )
                         .child(check("avoid-widgets", tr("TXT_AVOID_OVERLAP_RIGHT_WIDGETS_CHECK"), t.avoid_overlap_with_widgets, false, false, move |v, w, cx| {
@@ -1054,9 +1058,9 @@ impl OptionsView {
                         .child(
                             row()
                                 .child(label(tr("TXT_WIDGETS_WIDTH")))
-                                .child(stepper("widgets-width", t.taskbar_left_space_win11, 0, 1000, 1, false, move |v, w, cx| {
+                                .child(stepper(&host, "widgets-width", t.taskbar_left_space_win11, 0, 1000, 1, false, move |v, w, cx| {
                                     Self::update(&m5, w, cx, |s, _, _| s.draft.taskbar.taskbar_left_space_win11 = v)
-                                }, cx))
+                                }, window, cx))
                                 .child(label(tr("TXT_PIXELS"))),
                         )
                         .child(row().child(button("win11-default", tr_plain("TXT_RESTORE_DEFAULT"), false, move |w, cx| {
@@ -1109,20 +1113,20 @@ impl OptionsView {
 }
 
 impl Render for OptionsView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let me = cx.entity().downgrade();
         let tab_me = me.clone();
         let page: Vec<AnyElement> = if self.tab == 0 {
             vec![
-                self.color_font_group(&me, cx),
+                self.color_font_group(&me, window, cx),
                 h_flex()
                     .gap_3()
                     .items_start()
-                    .child(div().flex_1().child(self.display_group(&me, cx)))
+                    .child(div().flex_1().child(self.display_group(&me, window, cx)))
                     .child(div().w(px(260.)).child(self.unit_group(&me, cx)))
                     .into_any_element(),
                 self.taskbar_wnd_group(&me, cx),
-                self.graph_group(&me, cx),
+                self.graph_group(&me, window, cx),
                 self.render_group(&me, cx),
             ]
         } else {
@@ -1134,9 +1138,9 @@ impl Render for OptionsView {
                     .child(div().flex_1().child(self.data_group(&me, cx)))
                     .into_any_element(),
                 self.auto_run_group(&me, cx),
-                self.notify_group(&me, cx),
+                self.notify_group(&me, window, cx),
                 self.hardware_group(&me, cx),
-                self.advanced_group(&me, cx),
+                self.advanced_group(&me, window, cx),
             ]
         };
         let ok_me = me.clone();
