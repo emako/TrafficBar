@@ -26,14 +26,14 @@ fn main() {
     build_hardware_library();
 }
 
-/// Builds `TrafficMonitorBar.Hardware.dll` next to the main executable. The main process hosts
+/// Builds `TrafficBar.Hardware.dll` next to the main executable. The main process hosts
 /// the CLR and loads this library. LibreHardwareMonitor is embedded by the csproj build.
 fn build_hardware_library() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let Some(target_dir) = out_dir.ancestors().nth(3).map(Path::to_path_buf) else {
         return;
     };
-    let stale = target_dir.join("TrafficMonitorBar.Hardware.exe");
+    let stale = target_dir.join("TrafficBar.Hardware.exe");
     if let Err(err) = std::fs::remove_file(&stale) {
         if stale.exists() {
             println!("cargo:warning=could not remove stale {}: {err}", stale.display());
@@ -60,7 +60,7 @@ fn build_hardware_library() {
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
         let out = String::from_utf8_lossy(&output.stdout);
-        println!("cargo:warning=failed to build TrafficMonitorBar.Hardware.dll: {err}{out}");
+        println!("cargo:warning=failed to build TrafficBar.Hardware.dll: {err}{out}");
         return;
     }
     let built = manifest
@@ -68,8 +68,8 @@ fn build_hardware_library() {
         .join("hardware_bridge")
         .join("bin")
         .join(configuration)
-        .join("TrafficMonitorBar.Hardware.dll");
-    let dll = target_dir.join("TrafficMonitorBar.Hardware.dll");
+        .join("TrafficBar.Hardware.dll");
+    let dll = target_dir.join("TrafficBar.Hardware.dll");
     if let Err(err) = std::fs::copy(&built, &dll) {
         println!(
             "cargo:warning=failed to copy {} to {}: {err}",

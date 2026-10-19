@@ -73,7 +73,7 @@ fn init_logging(dir: &std::path::Path) {
 fn single_instance(restarted: bool) -> Option<HANDLE> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     loop {
-        let handle = unsafe { CreateMutexW(None, true, w!("TrafficMonitorBar_SingleInstance")) }.ok()?;
+        let handle = unsafe { CreateMutexW(None, true, w!("TrafficBar_SingleInstance")) }.ok()?;
         if unsafe { GetLastError() } != ERROR_ALREADY_EXISTS {
             return Some(handle);
         }

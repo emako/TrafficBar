@@ -6152,7 +6152,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "traffic-monitor-bar"
+name = "traffic-bar"
 version = "0.1.0"
 dependencies = [
  "anyhow",

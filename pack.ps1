@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Pack TrafficMonitorBar with Velopack (Setup.exe, MSI, update feed).
+    Pack TrafficBar with Velopack (Setup.exe, MSI, update feed).
 .DESCRIPTION
     Runs build.ps1, copies exe + hardware dll into a clean pack dir, then vpk pack.
 #>
@@ -24,8 +24,8 @@ $msiVersion = "$version.0"
 $releaseDir = Join-Path $PSScriptRoot "target\release"
 $packDir = Join-Path $PSScriptRoot "target\pack"
 $outDir = Join-Path $PSScriptRoot "target\setup"
-$exeName = "TrafficMonitorBar.exe"
-$dllName = "TrafficMonitorBar.Hardware.dll"
+$exeName = "TrafficBar.exe"
+$dllName = "TrafficBar.Hardware.dll"
 $exe = Join-Path $releaseDir $exeName
 $dll = Join-Path $releaseDir $dllName
 $icon = Join-Path $PSScriptRoot "src\assets\icons\app.ico"
@@ -55,11 +55,11 @@ if ($LASTEXITCODE -ne 0) {
 $framework = "net472,vcredist143-x64"
 
 & vpk pack `
-    --packId TrafficMonitorBar `
+    --packId TrafficBar `
     --packVersion $version `
     --packDir $packDir `
     --mainExe $exeName `
-    --packTitle TrafficMonitorBar `
+    --packTitle TrafficBar `
     --icon $icon `
     --runtime win-x64 `
     --framework $framework `

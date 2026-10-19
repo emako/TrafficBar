@@ -26,7 +26,7 @@ use crate::win::{dpi_from_rect, from_wide};
 use layout::{Context, GraphHistory, Layout};
 use render::{Devices, Font, Rect, RenderMode, Renderer};
 
-const CLASS_NAME: PCWSTR = w!("TrafficMonitorBarTaskbarWnd");
+const CLASS_NAME: PCWSTR = w!("TrafficBarTaskbarWnd");
 const HOVER_TIME_MS: u32 = 400;
 const WM_TABLET_QUERYSYSTEMGESTURESTATUS: u32 = 0x02CC;
 
@@ -241,7 +241,7 @@ pub fn open(mode: RenderMode) {
         CreateWindowExW(
             ex_style,
             CLASS_NAME,
-            w!("TrafficMonitorBar Taskbar Window"),
+            w!("TrafficBar Taskbar Window"),
             WS_POPUP | WS_CLIPSIBLINGS,
             0,
             0,

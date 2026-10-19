@@ -20,11 +20,11 @@ BEGIN
     BEGIN
         BLOCK "080404b0"
         BEGIN
-            VALUE "FileDescription", "TrafficMonitorBar"
+            VALUE "FileDescription", "TrafficBar"
             VALUE "FileVersion", "0.1.0.0"
-            VALUE "InternalName", "TrafficMonitorBar.exe"
-            VALUE "OriginalFilename", "TrafficMonitorBar.exe"
-            VALUE "ProductName", "TrafficMonitorBar"
+            VALUE "InternalName", "TrafficBar.exe"
+            VALUE "OriginalFilename", "TrafficBar.exe"
+            VALUE "ProductName", "TrafficBar"
             VALUE "ProductVersion", "0.1.0.0"
         END
     END

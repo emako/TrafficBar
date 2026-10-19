@@ -71,7 +71,7 @@ impl NetworkInfoView {
             internet_v4: None,
             internet_v6: None,
         };
-        let ua = format!("TrafficMonitorBar/{}", env!("CARGO_PKG_VERSION"));
+        let ua = format!("TrafficBar/{}", env!("CARGO_PKG_VERSION"));
         cx.spawn(async move |this, cx| {
             let ua4 = ua.clone();
             let v4 = cx

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 use windows::core::{GUID, s, w};
 
-const BRIDGE_DLL: &str = "TrafficMonitorBar.Hardware.dll";
+const BRIDGE_DLL: &str = "TrafficBar.Hardware.dll";
 const RESULT_CAP: usize = 256 * 1024;
 
 const CLSID_CLR_META_HOST: GUID = GUID::from_u128(0x9280188d_0e8e_4867_b30c_7fa83884e8de);
@@ -478,7 +478,7 @@ impl ClrHost {
             ((*vtbl::<RuntimeHostVtbl>(self.runtime)).execute)(
                 self.runtime,
                 assembly.as_ptr(),
-                w!("TrafficMonitorBar.Hardware.Bridge").as_ptr(),
+                w!("TrafficBar.Hardware.Bridge").as_ptr(),
                 w!("Dispatch").as_ptr(),
                 arg_w.as_ptr(),
                 &mut ret,

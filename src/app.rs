@@ -26,7 +26,7 @@ use crate::taskbar::{self, render::RenderMode};
 use crate::tray;
 use crate::win;
 
-pub const MAIN_CLASS: PCWSTR = w!("TrafficMonitorBar_MainWnd");
+pub const MAIN_CLASS: PCWSTR = w!("TrafficBar_MainWnd");
 const WM_APP_QUEUE: u32 = WM_APP + 10;
 const WM_APP_MONITOR: u32 = WM_APP + 11;
 pub const WM_APP_ACTIVATE: u32 = WM_APP + 12;
@@ -264,7 +264,7 @@ fn create_main_window() -> HWND {
         CreateWindowExW(
             WS_EX_TOOLWINDOW,
             MAIN_CLASS,
-            w!("TrafficMonitorBar"),
+            w!("TrafficBar"),
             WS_POPUP,
             0,
             0,
@@ -736,11 +736,11 @@ pub fn apply_update_and_restart(manager: &UpdateManager, update: &UpdateInfo) ->
 }
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-const RUN_VALUE: &str = "TrafficMonitorBar";
+const RUN_VALUE: &str = "TrafficBar";
 
 fn task_name() -> String {
     let user = std::env::var("USERNAME").unwrap_or_default();
-    format!(r"TrafficMonitorBar\Autorun for {user}")
+    format!(r"TrafficBar\Autorun for {user}")
 }
 
 fn exe_path_reg() -> String {
@@ -823,7 +823,7 @@ pub fn set_auto_run(enable: bool, task_scheduler: bool) -> Result<(), String> {
             user = xml_escape(&user),
             exe = xml_escape(&exe)
         );
-        let path = std::env::temp_dir().join("TrafficMonitorBar_task.xml");
+        let path = std::env::temp_dir().join("TrafficBar_task.xml");
         let mut data: Vec<u8> = vec![0xFF, 0xFE];
         for u in xml.encode_utf16() {
             data.extend_from_slice(&u.to_le_bytes());

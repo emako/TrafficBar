@@ -17,8 +17,8 @@ use crate::i18n::tr;
 use crate::state;
 use crate::update_source::GiteeSource;
 
-const DEFAULT_GITHUB: &str = "https://github.com/emako/TrafficMonitorBar";
-const DEFAULT_GITEE: &str = "https://gitee.com/emako/TrafficMonitorBar";
+const DEFAULT_GITHUB: &str = "https://github.com/emako/TrafficBar";
+const DEFAULT_GITEE: &str = "https://gitee.com/emako/TrafficBar";
 
 enum Outcome {
     Failed,

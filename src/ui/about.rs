@@ -29,7 +29,7 @@ impl Render for AboutView {
                         div()
                             .text_lg()
                             .font_weight(gpui::FontWeight::BOLD)
-                            .child(format!("TrafficMonitorBar {}", env!("CARGO_PKG_VERSION"))),
+                            .child(format!("TrafficBar {}", env!("CARGO_PKG_VERSION"))),
                     )
                     .child(div().text_sm().child(tr("BAR_BASED_ON")))
                     .child(muted("Copyright (C) 2017-2026 By ZhongYang", cx))
@@ -60,6 +60,6 @@ impl Render for AboutView {
 }
 
 pub fn open(cx: &mut App) {
-    let title = tr("TXT_TITLE_ABOUT").replace("TrafficMonitor", "TrafficMonitorBar");
+    let title = tr("TXT_TITLE_ABOUT").replace("TrafficMonitor", "TrafficBar");
     super::open_window(Slot::About, title, size(px(480.), px(480.)), false, cx, |_, _| AboutView);
 }

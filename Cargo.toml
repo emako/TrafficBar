@@ -1,5 +1,5 @@
 [package]
-name = "traffic-monitor-bar"
+name = "traffic-bar"
 version = "0.1.0"
 edition = "2024"
 description = "TrafficMonitor taskbar window rewritten with Rust + GPUI"
@@ -7,7 +7,7 @@ license = "MIT"
 build = "build.rs"
 
 [[bin]]
-name = "TrafficMonitorBar"
+name = "TrafficBar"
 path = "src/main.rs"
 
 [dependencies]

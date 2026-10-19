@@ -143,7 +143,7 @@ pub fn strip_mnemonic(s: &str) -> String {
 }
 
 const EXTRA: &[(&str, &str, &str)] = &[
-    ("APP_NAME", "TrafficMonitorBar", "TrafficMonitorBar"),
+    ("APP_NAME", "TrafficBar", "TrafficBar"),
     ("BAR_ADMIN_REQUIRED", "需要管理员权限", "Requires administrator privileges"),
     (
         "BAR_ADMIN_REQUIRED_TIP",
@@ -162,7 +162,7 @@ const EXTRA: &[(&str, &str, &str)] = &[
     ("BAR_RENDER_ULW", "Direct2D（分层窗口）", "Direct2D (layered window)"),
     ("BAR_RENDER_DCOMP", "Direct2D（DirectComposition）", "Direct2D (DirectComposition)"),
     ("BAR_PLUGIN_TEXT_ONLY", "插件项目仅显示文本，不支持插件自绘。", "Plugin items show text only; plugin custom drawing is not supported."),
-    ("BAR_HARDWARE_LIBRARY_MISSING", "未找到硬件监控库 TrafficMonitorBar.Hardware.dll。", "The hardware library TrafficMonitorBar.Hardware.dll was not found."),
+    ("BAR_HARDWARE_LIBRARY_MISSING", "未找到硬件监控库 TrafficBar.Hardware.dll。", "The hardware library TrafficBar.Hardware.dll was not found."),
     ("BAR_FOLLOW_SYSTEM", "跟随系统", "Follow system"),
     ("BAR_DOWNLOAD", "下载并安装", "Download and install"),
     ("BAR_CHECKING", "正在检查更新...", "Checking for updates..."),
@@ -170,8 +170,8 @@ const EXTRA: &[(&str, &str, &str)] = &[
     ("BAR_LATEST_VERSION", "最新版本：", "Latest version: "),
     (
         "BAR_UPDATE_NOT_INSTALLED",
-        "当前不是通过安装包运行的版本，无法在程序内更新。请先运行 TrafficMonitorBar-Setup.exe 或 MSI 安装。",
-        "This copy was not installed with the package, so in-app updates are unavailable. Run TrafficMonitorBar-Setup.exe or the MSI first.",
+        "当前不是通过安装包运行的版本，无法在程序内更新。请先运行 TrafficBar-Setup.exe 或 MSI 安装。",
+        "This copy was not installed with the package, so in-app updates are unavailable. Run TrafficBar-Setup.exe or the MSI first.",
     ),
     ("BAR_UPDATE_DOWNLOADING", "正在下载 V%s… %s%", "Downloading V%s… %s%"),
     ("BAR_UPDATE_DOWNLOAD_FAILED", "下载或安装更新失败，请稍后重试。", "Failed to download or install the update. Please try again later."),

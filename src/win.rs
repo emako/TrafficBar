@@ -264,7 +264,7 @@ pub fn appdata_dir() -> PathBuf {
     std::env::var_os("APPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(exe_dir)
-        .join("TrafficMonitorBar")
+        .join("TrafficBar")
 }
 
 pub fn system_dir() -> PathBuf {
@@ -303,7 +303,7 @@ pub fn shell_open(target: &str) {
 
 pub fn message_box(owner: Option<HWND>, text: &str, warning: bool) {
     let t = wide(text);
-    let caption = wide("TrafficMonitorBar");
+    let caption = wide("TrafficBar");
     let style: MESSAGEBOX_STYLE = MB_OK | if warning { MB_ICONWARNING } else { MB_ICONINFORMATION };
     unsafe {
         MessageBoxW(owner, PCWSTR(t.as_ptr()), PCWSTR(caption.as_ptr()), style);

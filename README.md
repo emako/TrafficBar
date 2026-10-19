@@ -1,4 +1,4 @@
-# TrafficMonitorBar
+# TrafficBar
 
 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) 的任务栏窗口，用 Rust + GPUI 重写。
 
@@ -15,7 +15,7 @@
 cargo build --release
 ```
 
-`build.rs` 会用 `dotnet` 编译进程内硬件监控库 `TrafficMonitorBar.Hardware.dll`，输出到 `target\<profile>\`。LibreHardwareMonitor 已嵌入该 DLL；主程序在进程内加载它。
+`build.rs` 会用 `dotnet` 编译进程内硬件监控库 `TrafficBar.Hardware.dll`，输出到 `target\<profile>\`。LibreHardwareMonitor 已嵌入该 DLL；主程序在进程内加载它。
 
 ## 安装包
 
@@ -25,23 +25,23 @@ cargo build --release
 .\pack.ps1
 ```
 
-脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficMonitorBar.exe` 与 `TrafficMonitorBar.Hardware.dll` 打成安装包，输出到 `target\setup\`：
+脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficBar.exe` 与 `TrafficBar.Hardware.dll` 打成安装包，输出到 `target\setup\`：
 
 | 文件 | 用途 |
 | --- | --- |
-| `TrafficMonitorBar-win-Setup.exe` | 一键安装（当前用户，`%LocalAppData%\TrafficMonitorBar`） |
-| `TrafficMonitorBar-win.msi` | MSI，当前用户安装 |
+| `TrafficBar-win-Setup.exe` | 一键安装（当前用户，`%LocalAppData%\TrafficBar`） |
+| `TrafficBar-win.msi` | MSI，当前用户安装 |
 | `releases.win.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源 |
-| `TrafficMonitorBar-win-Portable.zip` | 可选，不经安装直接解压运行 |
+| `TrafficBar-win-Portable.zip` | 可选，不经安装直接解压运行 |
 
 发布到 GitHub / Gitee Release 时请附上上述安装包与更新源文件。安装包目前未代码签名，SmartScreen 可能拦截。
 
-`packId` 固定为 `TrafficMonitorBar`，请勿更改，否则已安装用户无法收到后续更新。
+`packId` 固定为 `TrafficBar`，请勿更改，否则已安装用户无法收到后续更新。
 
 ## 温度监控
 
 温度监控与原版一样依赖 LibreHardwareMonitor，需要管理员权限。把原仓库的
-`OpenHardwareMonitorApi\LibreHardwareMonitorLib.dll` 复制到 `TrafficMonitorBar.exe` 所在目录，再在“选项设置 > 常规设置 > 硬件监控”中勾选要监控的硬件。
+`OpenHardwareMonitorApi\LibreHardwareMonitorLib.dll` 复制到 `TrafficBar.exe` 所在目录，再在“选项设置 > 常规设置 > 硬件监控”中勾选要监控的硬件。
 
 未以管理员身份运行时，温度相关的项目和选项后面会显示红色的 `!`，任务栏上对应的数值也显示 `!`；可以在右键菜单中选择“以管理员身份重新启动”。
 
@@ -51,7 +51,7 @@ cargo build --release
 
 ## 数据和配置
 
-默认保存在 `%AppData%\TrafficMonitorBar`（`config.ini`、`history_traffic.dat`）。在程序目录放置 `global_cfg.ini` 并设置 `portable_mode = true` 可改为保存到程序目录（Velopack 安装下也是安装根目录，更新不会覆盖）。
+默认保存在 `%AppData%\TrafficBar`（`config.ini`、`history_traffic.dat`）。在程序目录放置 `global_cfg.ini` 并设置 `portable_mode = true` 可改为保存到程序目录（Velopack 安装下也是安装根目录，更新不会覆盖）。
 
 ## 图标
 

@@ -64,7 +64,7 @@ impl GiteeSource {
         let options = HttpOptions {
             Headers: vec![HttpHeader {
                 Name: "User-Agent".into(),
-                Value: format!("TrafficMonitorBar/{}", env!("CARGO_PKG_VERSION")),
+                Value: format!("TrafficBar/{}", env!("CARGO_PKG_VERSION")),
             }],
             TimeoutMilliseconds: 60_000,
         };
@@ -101,7 +101,7 @@ impl UpdateSource for GiteeSource {
         let options = HttpOptions {
             Headers: vec![HttpHeader {
                 Name: "User-Agent".into(),
-                Value: format!("TrafficMonitorBar/{}", env!("CARGO_PKG_VERSION")),
+                Value: format!("TrafficBar/{}", env!("CARGO_PKG_VERSION")),
             }],
             TimeoutMilliseconds: 60_000,
         };
@@ -130,7 +130,7 @@ impl UpdateSource for GiteeSource {
         let options = HttpOptions {
             Headers: vec![HttpHeader {
                 Name: "User-Agent".into(),
-                Value: format!("TrafficMonitorBar/{}", env!("CARGO_PKG_VERSION")),
+                Value: format!("TrafficBar/{}", env!("CARGO_PKG_VERSION")),
             }],
             TimeoutMilliseconds: 0,
         };

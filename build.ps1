@@ -1,18 +1,18 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    编译 TrafficMonitorBar 的 release 版本。
+    编译 TrafficBar 的 release 版本。
 .DESCRIPTION
     先结束本仓库 target\release 中正在运行的主程序和旧版硬件辅助程序，
-    再执行 cargo build --release，并删除遗留的 TrafficMonitorBar.Hardware.exe。
+    再执行 cargo build --release，并删除遗留的 TrafficBar.Hardware.exe。
     不会启动程序。
 #>
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 Set-Location -LiteralPath $PSScriptRoot
 
-$exe = Join-Path $PSScriptRoot "target\release\TrafficMonitorBar.exe"
-$helper = Join-Path $PSScriptRoot "target\release\TrafficMonitorBar.Hardware.exe"
+$exe = Join-Path $PSScriptRoot "target\release\TrafficBar.exe"
+$helper = Join-Path $PSScriptRoot "target\release\TrafficBar.Hardware.exe"
 
 function Get-ReleaseProcess {
     @(Get-CimInstance Win32_Process | Where-Object {

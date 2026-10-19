@@ -1,5 +1,5 @@
-// In-process hardware bridge. TrafficMonitorBar hosts the CLR and calls
-// TrafficMonitorBar.Hardware.Bridge.Dispatch. LibreHardwareMonitor is a
+// In-process hardware bridge. TrafficBar hosts the CLR and calls
+// TrafficBar.Hardware.Bridge.Dispatch. LibreHardwareMonitor is a
 // compile-time reference of this assembly, so there is no separate monitor DLL.
 //
 // Dispatch argument, LF-separated:
@@ -16,7 +16,7 @@ using System.ServiceProcess;
 using System.Text;
 using LibreHardwareMonitor.Hardware;
 
-namespace TrafficMonitorBar.Hardware;
+namespace TrafficBar.Hardware;
 
 public static class Bridge
 {
