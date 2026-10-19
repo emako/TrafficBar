@@ -235,7 +235,8 @@ impl Monitor {
                         (self.events)(MonitorEvent::HardwareState(self.hw.state.clone()));
                     }
                     if interval_changed {
-                        next = Instant::now() + Duration::from_millis(self.params.interval_ms as u64);
+                        next =
+                            Instant::now() + Duration::from_millis(self.params.interval_ms as u64);
                     }
                 }
                 Ok(MonitorCmd::Refresh) => self.init_connections(),
@@ -261,7 +262,10 @@ impl Monitor {
     }
 
     fn init_connections(&mut self) {
-        self.connections = net::connections(self.params.show_all_interface, &self.params.connections_hide);
+        self.connections = net::connections(
+            self.params.show_all_interface,
+            &self.params.connections_hide,
+        );
         if self.params.show_all_interface && self.selection == Selection::All {
             self.selection = Selection::Auto;
         }
@@ -413,7 +417,11 @@ impl Monitor {
 
         let cpu_usage = self.cpu.usage(self.params.cpu_by_time);
         let mut cpu_freq = self.freq.freq().unwrap_or(-1.0);
-        let mut gpu_usage = if self.params.hardware.gpu { -1 } else { self.gpu.usage().unwrap_or(-1) };
+        let mut gpu_usage = if self.params.hardware.gpu {
+            -1
+        } else {
+            self.gpu.usage().unwrap_or(-1)
+        };
         let mut hdd_usage = -1;
         let mut hdd_by_pdh = false;
         if !self.params.hardware.hdd {
@@ -468,7 +476,8 @@ impl Monitor {
                         cpu_freq = info.cpu_freq;
                         snap.cpu_freq = cpu_freq;
                     }
-                    snap.cpu_temperature = if self.params.cpu_core_name == crate::i18n::tr("IDS_AVREAGE_TEMPERATURE")
+                    snap.cpu_temperature = if self.params.cpu_core_name
+                        == crate::i18n::tr("IDS_AVREAGE_TEMPERATURE")
                         || !info.cpu_temps.contains_key(&self.params.cpu_core_name)
                     {
                         info.cpu_temp
@@ -520,7 +529,10 @@ impl Monitor {
     fn send_lists(&mut self, disks: Vec<String>, cores: Vec<String>) {
         if self.last_lists.0 != disks || self.last_lists.1 != cores {
             self.last_lists = (disks.clone(), cores.clone());
-            (self.events)(MonitorEvent::HardwareLists { disks, cpu_cores: cores });
+            (self.events)(MonitorEvent::HardwareLists {
+                disks,
+                cpu_cores: cores,
+            });
         }
     }
 }

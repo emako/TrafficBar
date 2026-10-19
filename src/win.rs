@@ -2,24 +2,28 @@ use std::ffi::c_void;
 use std::path::PathBuf;
 
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, RECT};
-use windows::Win32::Globalization::{MultiByteToWideChar, CP_ACP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS};
+use windows::Win32::Globalization::{CP_ACP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
 use windows::Win32::Graphics::Dwm::DwmGetColorizationColor;
-use windows::Win32::Graphics::Gdi::{MonitorFromRect, MONITOR_DEFAULTTONEAREST};
-use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromRect};
+use windows::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
+use windows::Win32::System::Com::{
+    COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
+};
 use windows::Win32::System::Registry::{
-    RegCloseKey, RegGetValueW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ,
-    RRF_RT_REG_DWORD,
+    HKEY, HKEY_CURRENT_USER, KEY_READ, RRF_RT_REG_DWORD, RegCloseKey, RegGetValueW, RegOpenKeyExW,
+    RegQueryValueExW,
 };
 use windows::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcessToken, SetPriorityClass, SetProcessInformation, IDLE_PRIORITY_CLASS,
-    NORMAL_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-    PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling,
+    GetCurrentProcess, IDLE_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS, OpenProcessToken,
+    PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+    PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetPriorityClass,
+    SetProcessInformation,
 };
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    MessageBoxW, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MESSAGEBOX_STYLE, SW_SHOWNORMAL,
+    MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MESSAGEBOX_STYLE, MessageBoxW, SW_SHOWNORMAL,
 };
 use windows::core::{PCWSTR, w};
 
@@ -57,7 +61,12 @@ pub fn ansi_to_string(bytes: &[u8]) -> String {
             return String::from_utf8_lossy(bytes).into_owned();
         }
         let mut buf = vec![0u16; n as usize];
-        MultiByteToWideChar(CP_ACP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS(0), bytes, Some(&mut buf));
+        MultiByteToWideChar(
+            CP_ACP,
+            MULTI_BYTE_TO_WIDE_CHAR_FLAGS(0),
+            bytes,
+            Some(&mut buf),
+        );
         String::from_utf16_lossy(&buf)
     }
 }
@@ -111,7 +120,11 @@ pub fn reg_string(root: HKEY, path: &str, name: &str) -> Option<String> {
             Some(&mut size),
         );
         let _ = RegCloseKey(key);
-        if r.is_ok() { Some(from_wide(&buf)) } else { None }
+        if r.is_ok() {
+            Some(from_wide(&buf))
+        } else {
+            None
+        }
     }
 }
 
@@ -120,7 +133,8 @@ const EXPLORER_ADVANCED: &str = r"Software\Microsoft\Windows\CurrentVersion\Expl
 
 /// Same key as `CWindowsSettingHelper::CheckWindows10LightTheme`: drives the taskbar / tray colors.
 pub fn system_uses_light_theme() -> bool {
-    windows_version().major >= 10 && reg_dword(HKEY_CURRENT_USER, PERSONALIZE, "SystemUsesLightTheme").unwrap_or(0) != 0
+    windows_version().major >= 10
+        && reg_dword(HKEY_CURRENT_USER, PERSONALIZE, "SystemUsesLightTheme").unwrap_or(0) != 0
 }
 
 pub fn apps_use_light_theme() -> bool {
@@ -128,18 +142,24 @@ pub fn apps_use_light_theme() -> bool {
 }
 
 pub fn is_taskbar_center_align() -> bool {
-    reg_dword(HKEY_CURRENT_USER, EXPLORER_ADVANCED, "TaskbarAl").map(|v| v != 0).unwrap_or(true)
+    reg_dword(HKEY_CURRENT_USER, EXPLORER_ADVANCED, "TaskbarAl")
+        .map(|v| v != 0)
+        .unwrap_or(true)
 }
 
 pub fn is_taskbar_widgets_btn_shown(web_experience_detected: bool) -> bool {
     if !web_experience_detected {
         return false;
     }
-    reg_dword(HKEY_CURRENT_USER, EXPLORER_ADVANCED, "TaskbarDa").map(|v| v != 0).unwrap_or(true)
+    reg_dword(HKEY_CURRENT_USER, EXPLORER_ADVANCED, "TaskbarDa")
+        .map(|v| v != 0)
+        .unwrap_or(true)
 }
 
 pub fn is_taskbar_showing_in_all_displays() -> bool {
-    reg_dword(HKEY_CURRENT_USER, EXPLORER_ADVANCED, "MMTaskbarEnabled").map(|v| v != 0).unwrap_or(true)
+    reg_dword(HKEY_CURRENT_USER, EXPLORER_ADVANCED, "MMTaskbarEnabled")
+        .map(|v| v != 0)
+        .unwrap_or(true)
 }
 
 /// Mirrors `WindowsWebExperienceDetector`: the widgets package registers this AppX family.
@@ -148,7 +168,15 @@ pub fn is_windows_web_experience_detected() -> bool {
     unsafe {
         let mut key = HKEY::default();
         let p = wide(base);
-        if RegOpenKeyExW(HKEY_CURRENT_USER, PCWSTR(p.as_ptr()), Some(0), KEY_READ, &mut key).is_err() {
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(p.as_ptr()),
+            Some(0),
+            KEY_READ,
+            &mut key,
+        )
+        .is_err()
+        {
             return false;
         }
         let mut found = false;
@@ -234,7 +262,11 @@ pub fn set_efficiency_mode(enable: bool) {
         let state = PROCESS_POWER_THROTTLING_STATE {
             Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
             ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-            StateMask: if enable { PROCESS_POWER_THROTTLING_EXECUTION_SPEED } else { 0 },
+            StateMask: if enable {
+                PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+            } else {
+                0
+            },
         };
         if let Err(e) = SetProcessInformation(
             process,
@@ -244,7 +276,11 @@ pub fn set_efficiency_mode(enable: bool) {
         ) {
             log::warn!("SetProcessInformation(ProcessPowerThrottling) failed: {e}");
         }
-        let priority = if enable { IDLE_PRIORITY_CLASS } else { NORMAL_PRIORITY_CLASS };
+        let priority = if enable {
+            IDLE_PRIORITY_CLASS
+        } else {
+            NORMAL_PRIORITY_CLASS
+        };
         if let Err(e) = SetPriorityClass(process, priority) {
             log::warn!("SetPriorityClass failed: {e}");
         }
@@ -279,7 +315,10 @@ pub fn exe_path() -> PathBuf {
 }
 
 pub fn exe_dir() -> PathBuf {
-    exe_path().parent().map(|p| p.to_path_buf()).unwrap_or_default()
+    exe_path()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default()
 }
 
 /// Directory for plugins and `global_cfg.ini`. Under a Velopack install this is the pack root
@@ -326,22 +365,56 @@ fn relaunch(verb: windows::core::PCWSTR, args: &str) -> bool {
     let exe = wide(&exe_path().to_string_lossy());
     let args = wide(args);
     let r = unsafe {
-        ShellExecuteW(None, verb, PCWSTR(exe.as_ptr()), PCWSTR(args.as_ptr()), None, SW_SHOWNORMAL)
+        ShellExecuteW(
+            None,
+            verb,
+            PCWSTR(exe.as_ptr()),
+            PCWSTR(args.as_ptr()),
+            None,
+            SW_SHOWNORMAL,
+        )
     };
     r.0 as usize > 32
 }
 
+/// Opens a file, folder, or URL with the shell.
+///
+/// `ShellExecuteW` pumps window messages. Calling it on the UI thread from a GPUI handler
+/// reenters the window procedure while `App` is still borrowed and panics (`RefCell already borrowed`).
 pub fn shell_open(target: &str) {
-    let t = wide(target);
-    unsafe {
-        ShellExecuteW(None, w!("open"), PCWSTR(t.as_ptr()), None, None, SW_SHOWNORMAL);
+    if target.is_empty() {
+        return;
     }
+    let target = target.to_owned();
+    std::thread::spawn(move || {
+        let t = wide(&target);
+        unsafe {
+            let initialized =
+                CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).is_ok();
+            ShellExecuteW(
+                None,
+                w!("open"),
+                PCWSTR(t.as_ptr()),
+                None,
+                None,
+                SW_SHOWNORMAL,
+            );
+            if initialized {
+                CoUninitialize();
+            }
+        }
+    });
 }
 
 pub fn message_box(owner: Option<HWND>, text: &str, warning: bool) {
     let t = wide(text);
     let caption = wide("TrafficBar");
-    let style: MESSAGEBOX_STYLE = MB_OK | if warning { MB_ICONWARNING } else { MB_ICONINFORMATION };
+    let style: MESSAGEBOX_STYLE = MB_OK
+        | if warning {
+            MB_ICONWARNING
+        } else {
+            MB_ICONINFORMATION
+        };
     unsafe {
         MessageBoxW(owner, PCWSTR(t.as_ptr()), PCWSTR(caption.as_ptr()), style);
     }
@@ -352,7 +425,9 @@ pub fn dpi_from_rect(rect: &RECT) -> Option<u32> {
         let mon = MonitorFromRect(rect, MONITOR_DEFAULTTONEAREST);
         let mut x = 0u32;
         let mut y = 0u32;
-        GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &mut x, &mut y).ok().map(|_| x)
+        GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &mut x, &mut y)
+            .ok()
+            .map(|_| x)
     }
 }
 

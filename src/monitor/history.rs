@@ -157,7 +157,10 @@ impl HistoryTraffic {
 
 fn write_record(out: &mut String, r: &HistoryRecord) {
     if r.mixed {
-        out.push_str(&format!("{:04}/{:02}/{:02} {}\n", r.year, r.month, r.day, r.down_kbytes));
+        out.push_str(&format!(
+            "{:04}/{:02}/{:02} {}\n",
+            r.year, r.month, r.day, r.down_kbytes
+        ));
     } else {
         out.push_str(&format!(
             "{:04}/{:02}/{:02} {}/{}\n",

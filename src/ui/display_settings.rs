@@ -1,15 +1,15 @@
-﻿//! Display settings (`CSetItemOrderDlg`): which items the taskbar window shows and in what order.
+//! Display settings (`CSetItemOrderDlg`): which items the taskbar window shows and in what order.
 
 use gpui::{
-    AnyElement, App, Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement,
-    Styled, Window, div, prelude::FluentBuilder, px, size,
+    AnyElement, App, Context, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px, size,
 };
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
-use super::common::{self, button, footer, primary_button};
 use super::Slot;
+use super::common::{self, button, footer, primary_button};
 use crate::config::TaskbarSettings;
-use crate::display_item::{all_items, ItemKey, ItemOrder};
+use crate::display_item::{ItemKey, ItemOrder, all_items};
 use crate::i18n::{tr, tr_plain};
 use crate::state;
 
@@ -29,23 +29,36 @@ pub struct ItemOrderModel {
 }
 
 impl ItemOrderModel {
-    pub fn from_settings(t: &TaskbarSettings, hardware_item_enabled: impl Fn(&ItemKey) -> bool) -> Self {
+    pub fn from_settings(
+        t: &TaskbarSettings,
+        hardware_item_enabled: impl Fn(&ItemKey) -> bool,
+    ) -> Self {
         let (ids, names) = state::with(|s| {
             (
                 s.plugins.item_ids(),
-                s.plugins.items.iter().map(|i| (i.id.clone(), i.name.clone())).collect::<Vec<_>>(),
+                s.plugins
+                    .items
+                    .iter()
+                    .map(|i| (i.id.clone(), i.name.clone()))
+                    .collect::<Vec<_>>(),
             )
         });
         let all = all_items(&ids);
         let mut entries = Vec::new();
         for i in &t.item_order.order {
-            let Some(key) = all.get(*i as usize) else { continue };
+            let Some(key) = all.get(*i as usize) else {
+                continue;
+            };
             if !hardware_item_enabled(key) {
                 continue;
             }
             let name = match key {
                 ItemKey::Builtin(d) => d.name(),
-                ItemKey::Plugin(id) => names.iter().find(|(pid, _)| pid == id).map(|n| n.1.clone()).unwrap_or_else(|| id.clone()),
+                ItemKey::Plugin(id) => names
+                    .iter()
+                    .find(|(pid, _)| pid == id)
+                    .map(|n| n.1.clone())
+                    .unwrap_or_else(|| id.clone()),
             };
             entries.push(OrderEntry {
                 key: key.clone(),
@@ -54,7 +67,10 @@ impl ItemOrderModel {
                 index: *i,
             });
         }
-        ItemOrderModel { entries, selected: None }
+        ItemOrderModel {
+            entries,
+            selected: None,
+        }
     }
 
     pub fn move_up(&mut self) {
@@ -94,7 +110,8 @@ impl ItemOrderModel {
             t.set_item_displayed(&e.key, e.checked);
         }
         if t.display_item.is_empty() && t.plugin_display_item.is_empty() {
-            t.display_item.set(crate::display_item::DisplayItem::Up, true);
+            t.display_item
+                .set(crate::display_item::DisplayItem::Up, true);
         }
     }
 
@@ -151,16 +168,24 @@ impl ItemOrderModel {
                 v_flex()
                     .gap_2()
                     .w(px(110.))
-                    .child(button(format!("{id_prefix}-up"), tr_plain("TXT_MOVE_UP_BUTTON"), self.selected.is_none_or(|i| i == 0), move |w, cx| u1(w, cx, &|m| m.move_up())))
+                    .child(button(
+                        format!("{id_prefix}-up"),
+                        tr_plain("TXT_MOVE_UP_BUTTON"),
+                        self.selected.is_none_or(|i| i == 0),
+                        move |w, cx| u1(w, cx, &|m| m.move_up()),
+                    ))
                     .child(button(
                         format!("{id_prefix}-down"),
                         tr_plain("TXT_MOVE_DOWN_BUTTON"),
                         self.selected.is_none_or(|i| i + 1 >= self.entries.len()),
                         move |w, cx| u2(w, cx, &|m| m.move_down()),
                     ))
-                    .child(button(format!("{id_prefix}-default"), tr_plain("TXT_RESTORE_DEFAULT_BUTTON"), false, move |w, cx| {
-                        u3(w, cx, &|m| m.restore_default())
-                    })),
+                    .child(button(
+                        format!("{id_prefix}-default"),
+                        tr_plain("TXT_RESTORE_DEFAULT_BUTTON"),
+                        false,
+                        move |w, cx| u3(w, cx, &|m| m.restore_default()),
+                    )),
             )
             .into_any_element()
     }
@@ -168,7 +193,10 @@ impl ItemOrderModel {
 
 pub fn hardware_filter(general: &crate::config::GeneralSettings) -> impl Fn(&ItemKey) -> bool + '_ {
     move |k: &ItemKey| match k {
-        ItemKey::Builtin(d) => d.hardware().map(|hw| general.is_hardware_enabled(hw)).unwrap_or(true),
+        ItemKey::Builtin(d) => d
+            .hardware()
+            .map(|hw| general.is_hardware_enabled(hw))
+            .unwrap_or(true),
         ItemKey::Plugin(_) => true,
     }
 }
@@ -191,20 +219,28 @@ impl Render for DisplaySettingsView {
         let ok_view = cx.entity().downgrade();
         v_flex()
             .size_full()
-            .child(div().flex_1().p_4().child(self.model.render("ds", update, cx)))
+            .child(
+                div()
+                    .flex_1()
+                    .p_4()
+                    .child(self.model.render("ds", update, cx)),
+            )
             .child(footer(
                 vec![
                     primary_button("ds-ok", tr("TXT_OK"), move |window, cx| {
                         if let Some(v) = ok_view.upgrade() {
                             let model = v.read(cx).model.clone();
                             let mut settings = state::with(|s| s.settings.clone());
-                            let count = state::with(|s| s.plugins.item_ids().len()) + crate::display_item::ALL_BUILTIN.len();
+                            let count = state::with(|s| s.plugins.item_ids().len())
+                                + crate::display_item::ALL_BUILTIN.len();
                             model.apply_to(&mut settings.taskbar, count);
                             crate::app::apply_settings(settings);
                         }
                         window.remove_window();
                     }),
-                    button("ds-cancel", tr("TXT_CANCEL"), false, |window, _| window.remove_window()),
+                    button("ds-cancel", tr("TXT_CANCEL"), false, |window, _| {
+                        window.remove_window()
+                    }),
                 ],
                 cx,
             ))
@@ -212,7 +248,9 @@ impl Render for DisplaySettingsView {
 }
 
 pub fn open(cx: &mut App) {
-    let model = state::with(|s| ItemOrderModel::from_settings(&s.settings.taskbar, hardware_filter(&s.settings.general)));
+    let model = state::with(|s| {
+        ItemOrderModel::from_settings(&s.settings.taskbar, hardware_filter(&s.settings.general))
+    });
     super::open_window(
         Slot::DisplaySettings,
         tr("TXT_TITLE_SELECT_ORDER_DIALOG"),

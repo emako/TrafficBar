@@ -144,7 +144,11 @@ impl Ini {
     }
 
     pub fn set_bool(&mut self, section: &str, key: &str, value: bool) {
-        self.set_raw(section, key, if value { "true" } else { "false" }.to_string());
+        self.set_raw(
+            section,
+            key,
+            if value { "true" } else { "false" }.to_string(),
+        );
     }
 
     pub fn get_string_list(&self, section: &str, key: &str) -> Vec<String> {

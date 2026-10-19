@@ -1,18 +1,18 @@
-﻿//! Traffic history (`CHistoryTrafficDlg`): list view and calendar view.
+//! Traffic history (`CHistoryTrafficDlg`): list view and calendar view.
 
 use chrono::{Datelike, NaiveDate};
 use gpui::{
-    App, Context, InteractiveElement, IntoElement, ParentElement, Render, Styled, Window, div, prelude::FluentBuilder,
-    px, size, uniform_list,
+    App, Context, InteractiveElement, IntoElement, ParentElement, Render, Styled, Window, div,
+    prelude::FluentBuilder, px, size, uniform_list,
 };
 use gpui_component::button::Button;
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_component::tab::{Tab, TabBar};
 use gpui_component::{ActiveTheme, Sizable, h_flex, v_flex};
 
-use super::common::{button, choice, label, row};
 use super::Slot;
-use crate::config::{rgb as colorref, HistoryViewType};
+use super::common::{button, choice, label, row};
+use crate::config::{HistoryViewType, rgb as colorref};
 use crate::format::kbytes_to_string;
 use crate::i18n::tr;
 use crate::monitor::history::HistoryRecord;
@@ -75,12 +75,25 @@ fn build_rows(records: &[HistoryRecord], view: HistoryViewType, sunday_first: bo
     for r in records {
         let text = match view {
             HistoryViewType::Day => {
-                let wd = r.date().map(|d| d.weekday().num_days_from_sunday()).unwrap_or(0);
-                format!("{:04}/{:02}/{:02} ({})", r.year, r.month, r.day, week_day_name(wd))
+                let wd = r
+                    .date()
+                    .map(|d| d.weekday().num_days_from_sunday())
+                    .unwrap_or(0);
+                format!(
+                    "{:04}/{:02}/{:02} ({})",
+                    r.year,
+                    r.month,
+                    r.day,
+                    week_day_name(wd)
+                )
             }
             HistoryViewType::Week => {
                 let w = r.date().map(|d| week_number(d, sunday_first)).unwrap_or(1);
-                format!("{:04}/{}", r.year, tr("IDS_WEEK_NUM").replace("<%1%>", &w.to_string()))
+                format!(
+                    "{:04}/{}",
+                    r.year,
+                    tr("IDS_WEEK_NUM").replace("<%1%>", &w.to_string())
+                )
             }
             HistoryViewType::Month => format!("{:04}/{:02}", r.year, r.month),
             HistoryViewType::Quarter => format!("{:04}/Q{}", r.year, (r.month - 1) / 3 + 1),
@@ -113,7 +126,12 @@ pub struct HistoryView {
 
 impl HistoryView {
     fn new() -> Self {
-        let records = state::with(|s| s.monitor.as_ref().map(|m| m.history.lock().unwrap().all()).unwrap_or_default());
+        let records = state::with(|s| {
+            s.monitor
+                .as_ref()
+                .map(|m| m.history.lock().unwrap().all())
+                .unwrap_or_default()
+        });
         let today = chrono::Local::now();
         HistoryView {
             tab: 0,
@@ -132,11 +150,22 @@ impl HistoryView {
     }
 
     fn render_list(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let (view_type, log_scale, sunday_first) =
-            state::with(|s| (s.settings.cfg.view_type, s.settings.cfg.use_log_scale, s.settings.cfg.sunday_first));
+        let (view_type, log_scale, sunday_first) = state::with(|s| {
+            (
+                s.settings.cfg.view_type,
+                s.settings.cfg.use_log_scale,
+                s.settings.cfg.sunday_first,
+            )
+        });
         let rows = build_rows(&self.records, view_type, sunday_first);
         let max = rows.iter().map(|r| r.up + r.down).max().unwrap_or(1).max(1);
-        let views = vec![tr("IDS_DAY_VIEW"), tr("IDS_WEEK_VIEW"), tr("IDS_MONTH_VIEW"), tr("IDS_QUARTER_VIEW"), tr("IDS_YEAR_VIEW")];
+        let views = vec![
+            tr("IDS_DAY_VIEW"),
+            tr("IDS_WEEK_VIEW"),
+            tr("IDS_MONTH_VIEW"),
+            tr("IDS_QUARTER_VIEW"),
+            tr("IDS_YEAR_VIEW"),
+        ];
         let scales = vec![tr("IDS_LINEAR_SCALE"), tr("IDS_LOG_SCALE")];
         let me = cx.entity().downgrade();
         let me2 = me.clone();
@@ -149,23 +178,37 @@ impl HistoryView {
             .child(
                 row()
                     .child(label(tr("TXT_VIEW_TYPE")))
-                    .child(choice("view-type", views, view_type as usize, false, move |i, _, cx| {
-                        if let Some(v) = me.upgrade() {
-                            v.update(cx, |v, cx| {
-                                v.set_cfg(cx, |c| c.view_type = HistoryViewType::from_i32(i as i32));
-                                cx.notify();
-                            });
-                        }
-                    }))
+                    .child(choice(
+                        "view-type",
+                        views,
+                        view_type as usize,
+                        false,
+                        move |i, _, cx| {
+                            if let Some(v) = me.upgrade() {
+                                v.update(cx, |v, cx| {
+                                    v.set_cfg(cx, |c| {
+                                        c.view_type = HistoryViewType::from_i32(i as i32)
+                                    });
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ))
                     .child(label(tr("TXT_FIGURE_VIEW_SCALE")))
-                    .child(choice("view-scale", scales, log_scale as usize, false, move |i, _, cx| {
-                        if let Some(v) = me2.upgrade() {
-                            v.update(cx, |v, cx| {
-                                v.set_cfg(cx, |c| c.use_log_scale = i == 1);
-                                cx.notify();
-                            });
-                        }
-                    })),
+                    .child(choice(
+                        "view-scale",
+                        scales,
+                        log_scale as usize,
+                        false,
+                        move |i, _, cx| {
+                            if let Some(v) = me2.upgrade() {
+                                v.update(cx, |v, cx| {
+                                    v.set_cfg(cx, |c| c.use_log_scale = i == 1);
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    )),
             )
             .child(
                 h_flex()
@@ -203,12 +246,23 @@ impl HistoryView {
                                 .text_sm()
                                 .when(ix % 2 == 1, |d| d.bg(odd_bg))
                                 .child(div().w(px(200.)).child(r.text.clone()))
-                                .child(div().w(px(100.)).child(if r.mixed { "-".into() } else { kbytes_to_string(r.up) }))
-                                .child(div().w(px(100.)).child(if r.mixed { "-".into() } else { kbytes_to_string(r.down) }))
+                                .child(div().w(px(100.)).child(if r.mixed {
+                                    "-".into()
+                                } else {
+                                    kbytes_to_string(r.up)
+                                }))
+                                .child(div().w(px(100.)).child(if r.mixed {
+                                    "-".into()
+                                } else {
+                                    kbytes_to_string(r.down)
+                                }))
                                 .child(div().w(px(100.)).child(kbytes_to_string(total)))
                                 .child(
                                     div().flex_1().h(px(12.)).child(
-                                        div().h_full().w(gpui::relative(ratio)).bg(hsla(traffic_color(total))),
+                                        div()
+                                            .h_full()
+                                            .w(gpui::relative(ratio))
+                                            .bg(hsla(traffic_color(total))),
                                     ),
                                 )
                         })
@@ -223,7 +277,11 @@ impl HistoryView {
         let (year, month) = (self.year, self.month);
         let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap_or_default();
         let days_in_month = {
-            let next = if month == 12 { NaiveDate::from_ymd_opt(year + 1, 1, 1) } else { NaiveDate::from_ymd_opt(year, month + 1, 1) };
+            let next = if month == 12 {
+                NaiveDate::from_ymd_opt(year + 1, 1, 1)
+            } else {
+                NaiveDate::from_ymd_opt(year, month + 1, 1)
+            };
             next.map(|n| (n - first).num_days() as u32).unwrap_or(30)
         };
         let offset = if sunday_first {
@@ -232,9 +290,16 @@ impl HistoryView {
             first.weekday().num_days_from_monday()
         };
         let traffic_of = |day: u32| -> Option<&HistoryRecord> {
-            self.records.iter().find(|r| r.year == year && r.month == month && r.day == day)
+            self.records
+                .iter()
+                .find(|r| r.year == year && r.month == month && r.day == day)
         };
-        let month_total: u64 = self.records.iter().filter(|r| r.year == year && r.month == month).map(|r| r.kbytes()).sum();
+        let month_total: u64 = self
+            .records
+            .iter()
+            .filter(|r| r.year == year && r.month == month)
+            .map(|r| r.kbytes())
+            .sum();
         let today = chrono::Local::now().date_naive();
         let years: Vec<i32> = {
             let mut ys: Vec<i32> = self.records.iter().map(|r| r.year).collect();
@@ -246,7 +311,11 @@ impl HistoryView {
         let year_names: Vec<String> = years.iter().map(|y| y.to_string()).collect();
         let year_index = years.iter().position(|y| *y == year).unwrap_or(0);
         let month_names: Vec<String> = (1..=12).map(|m| m.to_string()).collect();
-        let order: Vec<u32> = if sunday_first { vec![0, 1, 2, 3, 4, 5, 6] } else { vec![1, 2, 3, 4, 5, 6, 0] };
+        let order: Vec<u32> = if sunday_first {
+            vec![0, 1, 2, 3, 4, 5, 6]
+        } else {
+            vec![1, 2, 3, 4, 5, 6, 0]
+        };
 
         let mut cells = Vec::new();
         for _ in 0..offset {
@@ -262,9 +331,18 @@ impl HistoryView {
                     .p_1()
                     .gap_0p5()
                     .border_1()
-                    .border_color(if is_today { cx.theme().primary } else { cx.theme().border })
+                    .border_color(if is_today {
+                        cx.theme().primary
+                    } else {
+                        cx.theme().border
+                    })
                     .rounded(px(4.))
-                    .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child(day.to_string()))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(day.to_string()),
+                    )
                     .when(kb > 0, |c| {
                         c.child(div().text_xs().child(kbytes_to_string(kb)))
                             .child(div().h(px(4.)).w_full().bg(hsla(traffic_color(kb))))
@@ -289,24 +367,36 @@ impl HistoryView {
             .child(
                 row()
                     .child(label(tr("TXT_YEAR")))
-                    .child(choice("cal-year", year_names, year_index, false, move |i, _, cx| {
-                        let y = years_for_select[i];
-                        if let Some(v) = m1.upgrade() {
-                            v.update(cx, |v, cx| {
-                                v.year = y;
-                                cx.notify();
-                            });
-                        }
-                    }))
+                    .child(choice(
+                        "cal-year",
+                        year_names,
+                        year_index,
+                        false,
+                        move |i, _, cx| {
+                            let y = years_for_select[i];
+                            if let Some(v) = m1.upgrade() {
+                                v.update(cx, |v, cx| {
+                                    v.year = y;
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ))
                     .child(label(tr("TXT_MONTH")))
-                    .child(choice("cal-month", month_names, (month - 1) as usize, false, move |i, _, cx| {
-                        if let Some(v) = m2.upgrade() {
-                            v.update(cx, |v, cx| {
-                                v.month = i as u32 + 1;
-                                cx.notify();
-                            });
-                        }
-                    }))
+                    .child(choice(
+                        "cal-month",
+                        month_names,
+                        (month - 1) as usize,
+                        false,
+                        move |i, _, cx| {
+                            if let Some(v) = m2.upgrade() {
+                                v.update(cx, |v, cx| {
+                                    v.month = i as u32 + 1;
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ))
                     .child(button("cal-prev", "<", false, move |_, cx| {
                         if let Some(v) = m3.upgrade() {
                             v.update(cx, |v, cx| {
@@ -341,59 +431,79 @@ impl HistoryView {
                             .dropdown_menu(move |menu, _, _| {
                                 let (a, b, c) = (menu_me.clone(), menu_me.clone(), m5.clone());
                                 menu.label(tr("TXT_FIRST_DAT_OF_WEEEK"))
-                                    .item(PopupMenuItem::new(tr("TXT_SUNDAY")).checked(sunday_first).on_click(move |_, _, cx| {
-                                        if let Some(v) = a.upgrade() {
-                                            v.update(cx, |v, cx| {
-                                                v.set_cfg(cx, |c| c.sunday_first = true);
-                                                cx.notify();
-                                            });
-                                        }
-                                    }))
-                                    .item(PopupMenuItem::new(tr("TXT_MONDAY")).checked(!sunday_first).on_click(move |_, _, cx| {
-                                        if let Some(v) = b.upgrade() {
-                                            v.update(cx, |v, cx| {
-                                                v.set_cfg(cx, |c| c.sunday_first = false);
-                                                cx.notify();
-                                            });
-                                        }
-                                    }))
+                                    .item(
+                                        PopupMenuItem::new(tr("TXT_SUNDAY"))
+                                            .checked(sunday_first)
+                                            .on_click(move |_, _, cx| {
+                                                if let Some(v) = a.upgrade() {
+                                                    v.update(cx, |v, cx| {
+                                                        v.set_cfg(cx, |c| c.sunday_first = true);
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            }),
+                                    )
+                                    .item(
+                                        PopupMenuItem::new(tr("TXT_MONDAY"))
+                                            .checked(!sunday_first)
+                                            .on_click(move |_, _, cx| {
+                                                if let Some(v) = b.upgrade() {
+                                                    v.update(cx, |v, cx| {
+                                                        v.set_cfg(cx, |c| c.sunday_first = false);
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            }),
+                                    )
                                     .separator()
-                                    .item(PopupMenuItem::new(crate::i18n::strip_mnemonic(&tr("TXT_GO_TO_TODAY"))).on_click(move |_, _, cx| {
-                                        if let Some(v) = c.upgrade() {
-                                            v.update(cx, |v, cx| {
-                                                let t = chrono::Local::now();
-                                                v.year = t.year();
-                                                v.month = t.month();
-                                                cx.notify();
-                                            });
-                                        }
-                                    }))
+                                    .item(
+                                        PopupMenuItem::new(crate::i18n::strip_mnemonic(&tr(
+                                            "TXT_GO_TO_TODAY",
+                                        )))
+                                        .on_click(
+                                            move |_, _, cx| {
+                                                if let Some(v) = c.upgrade() {
+                                                    v.update(cx, |v, cx| {
+                                                        let t = chrono::Local::now();
+                                                        v.year = t.year();
+                                                        v.month = t.month();
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            },
+                                        ),
+                                    )
                             }),
                     ),
             )
-            .child(
-                h_flex().children(order.iter().map(|wd| {
-                    div()
-                        .flex_1()
-                        .text_center()
-                        .text_sm()
-                        .text_color(if *wd == 0 || *wd == 6 { cx.theme().danger } else { cx.theme().foreground })
-                        .child(week_day_name(*wd))
-                })),
-            )
+            .child(h_flex().children(order.iter().map(|wd| {
+                div()
+                    .flex_1()
+                    .text_center()
+                    .text_sm()
+                    .text_color(if *wd == 0 || *wd == 6 {
+                        cx.theme().danger
+                    } else {
+                        cx.theme().foreground
+                    })
+                    .child(week_day_name(*wd))
+            })))
             .child(div().grid().grid_cols(7).gap_1().children(cells))
+            .child(row().child(label(format!(
+                "{} {}",
+                tr("IDS_CURRENT_MONTH_TOTAL_TRAFFIC"),
+                kbytes_to_string(month_total)
+            ))))
             .child(
                 row()
-                    .child(label(format!("{} {}", tr("IDS_CURRENT_MONTH_TOTAL_TRAFFIC"), kbytes_to_string(month_total)))),
-            )
-            .child(
-                row().child(label(tr("IDS_LEGEND"))).children(legend.iter().map(|(c, t)| {
-                    h_flex()
-                        .gap_1()
-                        .items_center()
-                        .child(div().size(px(12.)).bg(hsla(*c)))
-                        .child(div().text_xs().child(*t))
-                })),
+                    .child(label(tr("IDS_LEGEND")))
+                    .children(legend.iter().map(|(c, t)| {
+                        h_flex()
+                            .gap_1()
+                            .items_center()
+                            .child(div().size(px(12.)).bg(hsla(*c)))
+                            .child(div().text_xs().child(*t))
+                    })),
             )
     }
 }
@@ -430,5 +540,12 @@ impl Render for HistoryView {
 }
 
 pub fn open(cx: &mut App) {
-    super::open_window(Slot::History, tr("TXT_TITLE_HISTORY_TRAFFIC"), size(px(720.), px(620.)), true, cx, |_, _| HistoryView::new());
+    super::open_window(
+        Slot::History,
+        tr("TXT_TITLE_HISTORY_TRAFFIC"),
+        size(px(720.), px(620.)),
+        true,
+        cx,
+        |_, _| HistoryView::new(),
+    );
 }

@@ -52,14 +52,24 @@ fn load_source(src: &str) -> Loaded {
 
 fn all() -> &'static [Loaded] {
     ALL.get_or_init(|| {
-        let mut langs: Vec<Loaded> = LANG_SOURCES.iter().map(|(_, src)| load_source(src)).collect();
-        langs.sort_by(|a, b| a.bcp47.cmp(&b.bcp47).then(a.display_name.cmp(&b.display_name)));
+        let mut langs: Vec<Loaded> = LANG_SOURCES
+            .iter()
+            .map(|(_, src)| load_source(src))
+            .collect();
+        langs.sort_by(|a, b| {
+            a.bcp47
+                .cmp(&b.bcp47)
+                .then(a.display_name.cmp(&b.display_name))
+        });
         langs
     })
 }
 
 fn english_index(langs: &[Loaded]) -> usize {
-    langs.iter().position(|lang| lang.bcp47 == "en-US").unwrap_or(0)
+    langs
+        .iter()
+        .position(|lang| lang.bcp47 == "en-US")
+        .unwrap_or(0)
 }
 
 fn match_tag(langs: &[Loaded], tag: &str) -> usize {
@@ -78,12 +88,19 @@ fn match_tag(langs: &[Loaded], tag: &str) -> usize {
     }
     let lower = tag.to_ascii_lowercase().replace('_', "-");
     if lower.starts_with("zh") {
-        let want = if lower.contains("hant") || lower.contains("-tw") || lower.contains("-hk") || lower.contains("-mo") {
+        let want = if lower.contains("hant")
+            || lower.contains("-tw")
+            || lower.contains("-hk")
+            || lower.contains("-mo")
+        {
             "zh-TW"
         } else {
             "zh-CN"
         };
-        if let Some(index) = langs.iter().position(|lang| lang.bcp47.eq_ignore_ascii_case(want)) {
+        if let Some(index) = langs
+            .iter()
+            .position(|lang| lang.bcp47.eq_ignore_ascii_case(want))
+        {
             return index;
         }
     }
@@ -96,7 +113,13 @@ fn match_tag(langs: &[Loaded], tag: &str) -> usize {
     let same_language: Vec<usize> = langs
         .iter()
         .enumerate()
-        .filter(|(_, lang)| lang.bcp47.split('-').next().unwrap_or("").eq_ignore_ascii_case(primary))
+        .filter(|(_, lang)| {
+            lang.bcp47
+                .split('-')
+                .next()
+                .unwrap_or("")
+                .eq_ignore_ascii_case(primary)
+        })
         .map(|(index, _)| index)
         .collect();
     if same_language.len() == 1 {
@@ -121,7 +144,10 @@ pub fn init(configured: &str) {
 
 fn table() -> &'static Loaded {
     let langs = all();
-    &langs[CURRENT.get().copied().unwrap_or_else(|| english_index(langs))]
+    &langs[CURRENT
+        .get()
+        .copied()
+        .unwrap_or_else(|| english_index(langs))]
 }
 
 pub fn current_bcp47() -> &'static str {
@@ -150,7 +176,10 @@ pub fn lang_id() -> u16 {
 
 /// `(bcp47, display name)` in BCP-47 order, for the language picker.
 pub fn choices() -> Vec<(String, String)> {
-    all().iter().map(|lang| (lang.bcp47.clone(), lang.display_name.clone())).collect()
+    all()
+        .iter()
+        .map(|lang| (lang.bcp47.clone(), lang.display_name.clone()))
+        .collect()
 }
 
 /// Index in the picker, where 0 is "follow system".
@@ -172,13 +201,21 @@ pub fn default_font() -> String {
 /// Dialog / string-table text. Escaped `\r\n` and `\n` sequences from the ini are already unescaped.
 pub fn tr(key: &str) -> String {
     let t = table();
-    t.text.get(key).or_else(|| t.menu.get(key)).cloned().unwrap_or_else(|| key.to_string())
+    t.text
+        .get(key)
+        .or_else(|| t.menu.get(key))
+        .cloned()
+        .unwrap_or_else(|| key.to_string())
 }
 
 /// Menu text (keeps the `&` mnemonic markers).
 pub fn trm(key: &str) -> String {
     let t = table();
-    t.menu.get(key).or_else(|| t.text.get(key)).cloned().unwrap_or_else(|| key.to_string())
+    t.menu
+        .get(key)
+        .or_else(|| t.text.get(key))
+        .cloned()
+        .unwrap_or_else(|| key.to_string())
 }
 
 /// Text without mnemonic markers like `(&O)` or `&`, for GPUI buttons.
@@ -234,7 +271,8 @@ mod tests {
 
     #[test]
     fn thai_follows_system_wording() {
-        let ini = Ini::from_str(include_str!("assets/lang/th-TH.ini").trim_start_matches('\u{feff}'));
+        let ini =
+            Ini::from_str(include_str!("assets/lang/th-TH.ini").trim_start_matches('\u{feff}'));
         assert_eq!(ini.get_string("general", "BCP_47", ""), "th-TH");
         assert_eq!(ini.get_string("general", "DISPLAY_NAME", ""), "ไทย");
         assert_eq!(ini.get_string("text", "BAR_FOLLOW_SYSTEM", ""), "ตามระบบ");

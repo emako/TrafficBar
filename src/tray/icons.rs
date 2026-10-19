@@ -5,14 +5,18 @@
 use std::sync::Mutex;
 
 use windows::Win32::Graphics::Gdi::{
-    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateDIBSection, DIB_RGB_COLORS, DeleteObject, HBITMAP, HGDIOBJ,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateDIBSection, DIB_RGB_COLORS, DeleteObject, HBITMAP,
+    HGDIOBJ,
 };
 use windows::Win32::Graphics::Imaging::{
     CLSID_WICImagingFactory, GUID_WICPixelFormat32bppPBGRA, IWICBitmapSource, IWICImagingFactory,
-    WICBitmapDitherTypeNone, WICBitmapInterpolationMode, WICBitmapInterpolationModeHighQualityCubic,
-    WICBitmapInterpolationModeNearestNeighbor, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnLoad,
+    WICBitmapDitherTypeNone, WICBitmapInterpolationMode,
+    WICBitmapInterpolationModeHighQualityCubic, WICBitmapInterpolationModeNearestNeighbor,
+    WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnLoad,
 };
-use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx};
+use windows::Win32::System::Com::{
+    CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
+};
 use windows::Win32::UI::Shell::SHCreateMemStream;
 
 const COUNT: usize = 12;
@@ -215,7 +219,9 @@ fn decode(factory: &IWICImagingFactory, png: &[u8], px: i32) -> Option<HBITMAP> 
     }
     unsafe {
         let stream = SHCreateMemStream(Some(png))?;
-        let decoder = factory.CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnLoad).ok()?;
+        let decoder = factory
+            .CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnLoad)
+            .ok()?;
         let frame = decoder.GetFrame(0).ok()?;
         let mut src_w = 0u32;
         let mut src_h = 0u32;
@@ -227,7 +233,14 @@ fn decode(factory: &IWICImagingFactory, png: &[u8], px: i32) -> Option<HBITMAP> 
         // An exact frame is copied as authored. Only a non-matching DPI is resampled.
         if src_w == px as u32 && src_h == px as u32 {
             converter
-                .Initialize(&*frame, &GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, None, 0.0, WICBitmapPaletteTypeCustom)
+                .Initialize(
+                    &*frame,
+                    &GUID_WICPixelFormat32bppPBGRA,
+                    WICBitmapDitherTypeNone,
+                    None,
+                    0.0,
+                    WICBitmapPaletteTypeCustom,
+                )
                 .ok()?;
             return copy_source(&converter, px as u32);
         }
@@ -237,9 +250,18 @@ fn decode(factory: &IWICImagingFactory, png: &[u8], px: i32) -> Option<HBITMAP> 
         } else {
             WICBitmapInterpolationModeNearestNeighbor
         };
-        scaler.Initialize(&*frame, px as u32, px as u32, mode).ok()?;
+        scaler
+            .Initialize(&*frame, px as u32, px as u32, mode)
+            .ok()?;
         converter
-            .Initialize(&*scaler, &GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, None, 0.0, WICBitmapPaletteTypeCustom)
+            .Initialize(
+                &*scaler,
+                &GUID_WICPixelFormat32bppPBGRA,
+                WICBitmapDitherTypeNone,
+                None,
+                0.0,
+                WICBitmapPaletteTypeCustom,
+            )
             .ok()?;
         copy_source(&converter, px as u32)
     }

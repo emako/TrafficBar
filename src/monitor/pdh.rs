@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use windows::Win32::System::Performance::{
-    PdhAddCounterW, PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterArrayW,
-    PdhGetFormattedCounterValue, PdhOpenQueryW, PDH_FMT_COUNTERVALUE, PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE,
-    PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
+    PDH_FMT_COUNTERVALUE, PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY,
+    PDH_MORE_DATA, PdhAddCounterW, PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData,
+    PdhGetFormattedCounterArrayW, PdhGetFormattedCounterValue, PdhOpenQueryW,
 };
 use windows::core::PCWSTR;
 
@@ -68,20 +68,35 @@ impl PdhQuery {
             PdhCollectQueryData(self.query);
             let mut size = 0u32;
             let mut count = 0u32;
-            let status = PdhGetFormattedCounterArrayW(self.counter, PDH_FMT_DOUBLE, &mut size, &mut count, None);
+            let status = PdhGetFormattedCounterArrayW(
+                self.counter,
+                PDH_FMT_DOUBLE,
+                &mut size,
+                &mut count,
+                None,
+            );
             if status != PDH_MORE_DATA {
                 return None;
             }
             let mut buf = vec![0u8; size as usize + 16];
             let items = buf.as_mut_ptr() as *mut PDH_FMT_COUNTERVALUE_ITEM_W;
-            let status = PdhGetFormattedCounterArrayW(self.counter, PDH_FMT_DOUBLE, &mut size, &mut count, Some(items));
+            let status = PdhGetFormattedCounterArrayW(
+                self.counter,
+                PDH_FMT_DOUBLE,
+                &mut size,
+                &mut count,
+                Some(items),
+            );
             if status != 0 {
                 return None;
             }
             let mut out = Vec::with_capacity(count as usize);
             for i in 0..count as usize {
                 let item = &*items.add(i);
-                out.push((from_pcwstr(item.szName.0), item.FmtValue.Anonymous.doubleValue));
+                out.push((
+                    from_pcwstr(item.szName.0),
+                    item.FmtValue.Anonymous.doubleValue,
+                ));
             }
             Some(out)
         }
@@ -132,7 +147,12 @@ pub struct DiskUsage {
 impl DiskUsage {
     pub fn new() -> Self {
         let mut q = PdhQuery::new(r"\PhysicalDisk(*)\% Idle Time");
-        let names = q.values().unwrap_or_default().into_iter().map(|(n, _)| n).collect();
+        let names = q
+            .values()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
         DiskUsage { q, names }
     }
 
@@ -250,7 +270,11 @@ impl CpuUsage {
                 let di = cur.0.wrapping_sub(p.0) as i64;
                 let dk = cur.1.wrapping_sub(p.1) as i64;
                 let du = cur.2.wrapping_sub(p.2) as i64;
-                if dk + du == 0 { 0 } else { ((dk + du - di) * 100 / (dk + du)).abs() as i32 }
+                if dk + du == 0 {
+                    0
+                } else {
+                    ((dk + du - di) * 100 / (dk + du)).abs() as i32
+                }
             }
             None => 0,
         };

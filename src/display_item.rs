@@ -40,12 +40,18 @@ impl DisplayItem {
     pub fn is_temperature(self) -> bool {
         matches!(
             self,
-            DisplayItem::CpuTemp | DisplayItem::GpuTemp | DisplayItem::HddTemp | DisplayItem::MainBoardTemp
+            DisplayItem::CpuTemp
+                | DisplayItem::GpuTemp
+                | DisplayItem::HddTemp
+                | DisplayItem::MainBoardTemp
         )
     }
 
     pub fn is_net_speed(self) -> bool {
-        matches!(self, DisplayItem::Up | DisplayItem::Down | DisplayItem::TotalSpeed)
+        matches!(
+            self,
+            DisplayItem::Up | DisplayItem::Down | DisplayItem::TotalSpeed
+        )
     }
 
     /// Temperatures come from LibreHardwareMonitor, which needs administrator rights.
@@ -188,7 +194,11 @@ impl ItemOrder {
     }
 
     pub fn to_string(&self) -> String {
-        self.order.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(",")
+        self.order
+            .iter()
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
     }
 
     pub fn normalize(&mut self, item_count: usize) {

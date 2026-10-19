@@ -1,18 +1,21 @@
-﻿//! Check for updates against this program's Velopack release feed on GitHub or Gitee.
+//! Check for updates against this program's Velopack release feed on GitHub or Gitee.
 //! URLs can be overridden in config.ini (`[app] update_url_github/gitee`).
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicI16, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::time::Duration;
 
-use gpui::{App, AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render, Styled, Window, div, px, size};
+use gpui::{
+    App, AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render, Styled,
+    Window, div, px, size,
+};
 use gpui_component::{scroll::ScrollableElement, v_flex};
 use velopack::sources::{GithubSource, UpdateSource};
 use velopack::{UpdateCheck, UpdateInfo, UpdateManager};
 
-use super::common::{button, footer, primary_button};
 use super::Slot;
+use super::common::{button, footer, primary_button};
 use crate::i18n::tr;
 use crate::state;
 use crate::update_source::GiteeSource;
@@ -76,20 +79,30 @@ pub fn check(silent: bool, cx: &mut App) {
         if s.settings.general.update_source == 1 {
             (1, ini.get_string("app", "update_url_gitee", DEFAULT_GITEE))
         } else {
-            (0, ini.get_string("app", "update_url_github", DEFAULT_GITHUB))
+            (
+                0,
+                ini.get_string("app", "update_url_github", DEFAULT_GITHUB),
+            )
         }
     });
     cx.spawn(async move |cx| {
-        let outcome = cx.background_spawn(async move { check_once(source_kind, url) }).await;
+        let outcome = cx
+            .background_spawn(async move { check_once(source_kind, url) })
+            .await;
         let _ = cx.update(|cx| {
             state::with_mut(|s| s.checking_update = false);
             if silent && !matches!(outcome, Outcome::Available { .. }) {
                 return;
             }
             super::close(Slot::Update, cx);
-            super::open_window(Slot::Update, tr("IDS_VERSION_UPDATE"), size(px(480.), px(320.)), false, cx, move |_, _| UpdateView {
-                outcome,
-            });
+            super::open_window(
+                Slot::Update,
+                tr("IDS_VERSION_UPDATE"),
+                size(px(480.), px(320.)),
+                false,
+                cx,
+                move |_, _| UpdateView { outcome },
+            );
         });
     })
     .detach();
@@ -174,7 +187,8 @@ impl UpdateView {
                         return;
                     }
                 }
-                cx.background_spawn(async { std::thread::sleep(Duration::from_millis(200)) }).await;
+                cx.background_spawn(async { std::thread::sleep(Duration::from_millis(200)) })
+                    .await;
             }
         })
         .detach();
@@ -217,12 +231,21 @@ impl Render for UpdateView {
         let mut buttons = Vec::new();
         if can_install {
             let entity = cx.entity().downgrade();
-            buttons.push(primary_button("update-go", tr("BAR_DOWNLOAD"), move |w, cx| {
-                let _ = entity.update(cx, |view, cx| view.start_download(w, cx));
-            }));
+            buttons.push(primary_button(
+                "update-go",
+                tr("BAR_DOWNLOAD"),
+                move |w, cx| {
+                    let _ = entity.update(cx, |view, cx| view.start_download(w, cx));
+                },
+            ));
         }
         let downloading = matches!(self.outcome, Outcome::Downloading { .. });
-        buttons.push(button("update-close", tr("TXT_CLOSE"), downloading, |w, _| w.remove_window()));
+        buttons.push(button(
+            "update-close",
+            tr("TXT_CLOSE"),
+            downloading,
+            |w, _| w.remove_window(),
+        ));
         v_flex()
             .size_full()
             .child(
@@ -232,7 +255,10 @@ impl Render for UpdateView {
                     .min_h_0()
                     .p_4()
                     .overflow_y_scrollbar()
-                    .children(text.split('\n').map(|l| div().text_sm().child(l.to_string()))),
+                    .children(
+                        text.split('\n')
+                            .map(|l| div().text_sm().child(l.to_string())),
+                    ),
             )
             .child(footer(buttons, cx))
     }

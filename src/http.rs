@@ -44,7 +44,11 @@ pub fn get(url: &str, user_agent: &str) -> Option<String> {
                 PCWSTR::null(),
                 PCWSTR::null(),
                 std::ptr::null(),
-                if secure { WINHTTP_FLAG_SECURE } else { WINHTTP_OPEN_REQUEST_FLAGS(0) },
+                if secure {
+                    WINHTTP_FLAG_SECURE
+                } else {
+                    WINHTTP_OPEN_REQUEST_FLAGS(0)
+                },
             );
             if request.is_null() {
                 let _ = WinHttpCloseHandle(connect);
@@ -72,7 +76,10 @@ pub fn get(url: &str, user_agent: &str) -> Option<String> {
                         }
                         let mut buf = vec![0u8; avail as usize];
                         let mut read = 0u32;
-                        if WinHttpReadData(request, buf.as_mut_ptr() as *mut _, avail, &mut read).is_err() || read == 0 {
+                        if WinHttpReadData(request, buf.as_mut_ptr() as *mut _, avail, &mut read)
+                            .is_err()
+                            || read == 0
+                        {
                             break;
                         }
                         body.extend_from_slice(&buf[..read as usize]);
@@ -81,7 +88,11 @@ pub fn get(url: &str, user_agent: &str) -> Option<String> {
             }
             let _ = WinHttpCloseHandle(request);
             let _ = WinHttpCloseHandle(connect);
-            if body.is_empty() { None } else { Some(String::from_utf8_lossy(&body).into_owned()) }
+            if body.is_empty() {
+                None
+            } else {
+                Some(String::from_utf8_lossy(&body).into_owned())
+            }
         })();
         let _ = WinHttpCloseHandle(session);
         result

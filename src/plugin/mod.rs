@@ -64,7 +64,15 @@ unsafe extern "C" {
     fn tm_item_label(item: *mut c_void) -> *const u16;
     fn tm_item_value(item: *mut c_void) -> *const u16;
     fn tm_item_sample(item: *mut c_void) -> *const u16;
-    fn tm_item_on_mouse_event(plugin: *mut c_void, item: *mut c_void, kind: i32, x: i32, y: i32, hwnd: *mut c_void, flag: i32) -> i32;
+    fn tm_item_on_mouse_event(
+        plugin: *mut c_void,
+        item: *mut c_void,
+        kind: i32,
+        x: i32,
+        y: i32,
+        hwnd: *mut c_void,
+        flag: i32,
+    ) -> i32;
     fn tm_item_on_keyboard_event(
         plugin: *mut c_void,
         item: *mut c_void,
@@ -135,7 +143,11 @@ pub struct PluginInfo {
 
 impl PluginInfo {
     pub fn name(&self) -> String {
-        if self.props[0].is_empty() { self.file_name.clone() } else { self.props[0].clone() }
+        if self.props[0].is_empty() {
+            self.file_name.clone()
+        } else {
+            self.props[0].clone()
+        }
     }
     pub fn is_loaded(&self) -> bool {
         self.state == PluginState::Succeed
@@ -249,7 +261,10 @@ extern "C" fn cb_get_language_id() -> u16 {
 
 extern "C" fn cb_get_config_dir() -> *const u16 {
     match HOST_DATA.read() {
-        Ok(g) => g.as_ref().map(|d| d.config_dir.as_ptr()).unwrap_or(std::ptr::null()),
+        Ok(g) => g
+            .as_ref()
+            .map(|d| d.config_dir.as_ptr())
+            .unwrap_or(std::ptr::null()),
         Err(_) => std::ptr::null(),
     }
 }
@@ -344,11 +359,18 @@ impl PluginHost {
         };
         let mut files: Vec<PathBuf> = entries
             .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.extension().map(|e| e.eq_ignore_ascii_case("dll")).unwrap_or(false))
+            .filter(|p| {
+                p.extension()
+                    .map(|e| e.eq_ignore_ascii_case("dll"))
+                    .unwrap_or(false)
+            })
             .collect();
         files.sort();
         for path in files {
-            let file_name = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+            let file_name = path
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_default();
             let mut info = PluginInfo {
                 file_name: file_name.clone(),
                 file_path: path.clone(),
@@ -470,13 +492,36 @@ impl PluginHost {
         }
     }
 
-    pub fn mouse_event(&self, item: &PluginItem, ev: MouseEvent, x: i32, y: i32, hwnd: isize) -> bool {
+    pub fn mouse_event(
+        &self,
+        item: &PluginItem,
+        ev: MouseEvent,
+        x: i32,
+        y: i32,
+        hwnd: isize,
+    ) -> bool {
         unsafe {
-            tm_item_on_mouse_event(self.plugin_ptr(item), item.item.0, ev as i32, x, y, hwnd as *mut c_void, MF_TASKBAR_WND) != 0
+            tm_item_on_mouse_event(
+                self.plugin_ptr(item),
+                item.item.0,
+                ev as i32,
+                x,
+                y,
+                hwnd as *mut c_void,
+                MF_TASKBAR_WND,
+            ) != 0
         }
     }
 
-    pub fn key_event(&self, item: &PluginItem, key: i32, ctrl: bool, shift: bool, alt: bool, hwnd: isize) -> bool {
+    pub fn key_event(
+        &self,
+        item: &PluginItem,
+        key: i32,
+        ctrl: bool,
+        shift: bool,
+        alt: bool,
+        hwnd: isize,
+    ) -> bool {
         unsafe {
             tm_item_on_keyboard_event(
                 self.plugin_ptr(item),

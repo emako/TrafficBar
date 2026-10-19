@@ -3,47 +3,54 @@
 //! as the fallback when updating the layered window fails. There is no GDI drawing path.
 
 use windows::Win32::Foundation::{HWND, POINT, SIZE};
-use windows::Win32::Graphics::Direct2D::Common::{D2D_RECT_F, D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_COLOR_F, D2D1_PIXEL_FORMAT};
+use windows::Win32::Graphics::Direct2D::Common::{
+    D2D_RECT_F, D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_COLOR_F, D2D1_PIXEL_FORMAT,
+};
 use windows::Win32::Graphics::Direct2D::{
-    D2D1_ANTIALIAS_MODE_ALIASED, D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1_BITMAP_OPTIONS_GDI_COMPATIBLE,
-    D2D1_BITMAP_OPTIONS_TARGET, D2D1_BITMAP_PROPERTIES1, D2D1_CAP_STYLE_FLAT, D2D1_DASH_STYLE_DASH,
-    D2D1_DEVICE_CONTEXT_OPTIONS_NONE, D2D1_DRAW_TEXT_OPTIONS, D2D1_DRAW_TEXT_OPTIONS_CLIP,
-    D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT, D2D1_DRAW_TEXT_OPTIONS_NO_SNAP, D2D1_FACTORY_OPTIONS,
-    D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1_LINE_JOIN_MITER, D2D1_STROKE_STYLE_PROPERTIES,
-    D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE, D2D1CreateFactory, ID2D1Bitmap1,
-    ID2D1Device, ID2D1DeviceContext, ID2D1Factory, ID2D1Factory1, ID2D1SolidColorBrush, ID2D1StrokeStyle,
+    D2D1_ANTIALIAS_MODE_ALIASED, D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+    D2D1_BITMAP_OPTIONS_GDI_COMPATIBLE, D2D1_BITMAP_OPTIONS_TARGET, D2D1_BITMAP_PROPERTIES1,
+    D2D1_CAP_STYLE_FLAT, D2D1_DASH_STYLE_DASH, D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
+    D2D1_DRAW_TEXT_OPTIONS, D2D1_DRAW_TEXT_OPTIONS_CLIP, D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
+    D2D1_DRAW_TEXT_OPTIONS_NO_SNAP, D2D1_FACTORY_OPTIONS, D2D1_FACTORY_TYPE_SINGLE_THREADED,
+    D2D1_LINE_JOIN_MITER, D2D1_STROKE_STYLE_PROPERTIES, D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE,
+    D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE, D2D1CreateFactory, ID2D1Bitmap1, ID2D1Device,
+    ID2D1DeviceContext, ID2D1Factory, ID2D1Factory1, ID2D1SolidColorBrush, ID2D1StrokeStyle,
 };
 use windows::Win32::Graphics::Direct3D::{
-    D3D_DRIVER_TYPE, D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP, D3D_FEATURE_LEVEL_10_0, D3D_FEATURE_LEVEL_10_1,
-    D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_9_3,
+    D3D_DRIVER_TYPE, D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP, D3D_FEATURE_LEVEL_9_3,
+    D3D_FEATURE_LEVEL_10_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_11_1,
 };
 use windows::Win32::Graphics::Direct3D11::{
     D3D11_BIND_RENDER_TARGET, D3D11_BIND_SHADER_RESOURCE, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-    D3D11_RESOURCE_MISC_GDI_COMPATIBLE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_DEFAULT,
-    D3D11CreateDevice, ID3D11Device, ID3D11Texture2D,
+    D3D11_RESOURCE_MISC_GDI_COMPATIBLE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC,
+    D3D11_USAGE_DEFAULT, D3D11CreateDevice, ID3D11Device, ID3D11Texture2D,
 };
 use windows::Win32::Graphics::DirectComposition::{
     DCompositionCreateDevice, IDCompositionDevice, IDCompositionTarget, IDCompositionVisual,
 };
 use windows::Win32::Graphics::DirectWrite::{
-    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STYLE_NORMAL,
-    DWRITE_FONT_WEIGHT, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_TEXT_ALIGNMENT, DWRITE_TEXT_ALIGNMENT_CENTER,
-    DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_TEXT_ALIGNMENT_TRAILING, DWRITE_TEXT_METRICS, DWRITE_TEXT_RANGE,
-    DWRITE_WORD_WRAPPING_NO_WRAP, DWriteCreateFactory, IDWriteFactory, IDWriteFontCollection, IDWriteLocalizedStrings,
-    IDWriteTextFormat, IDWriteTextLayout,
+    DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_ITALIC,
+    DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_WEIGHT, DWRITE_PARAGRAPH_ALIGNMENT_CENTER,
+    DWRITE_TEXT_ALIGNMENT, DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_TEXT_ALIGNMENT_LEADING,
+    DWRITE_TEXT_ALIGNMENT_TRAILING, DWRITE_TEXT_METRICS, DWRITE_TEXT_RANGE,
+    DWRITE_WORD_WRAPPING_NO_WRAP, DWriteCreateFactory, IDWriteFactory, IDWriteFontCollection,
+    IDWriteLocalizedStrings, IDWriteTextFormat, IDWriteTextLayout,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_ALPHA_MODE_PREMULTIPLIED, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC,
 };
 use windows::Win32::Graphics::Dxgi::{
     DXGI_PRESENT, DXGI_SCALING_STRETCH, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-    DXGI_USAGE_RENDER_TARGET_OUTPUT, IDXGIDevice, IDXGIFactory2, IDXGISurface, IDXGISurface1, IDXGISwapChain1,
+    DXGI_USAGE_RENDER_TARGET_OUTPUT, IDXGIDevice, IDXGIFactory2, IDXGISurface, IDXGISurface1,
+    IDXGISwapChain1,
 };
 use windows::Win32::Graphics::Gdi::{AC_SRC_ALPHA, AC_SRC_OVER, BLENDFUNCTION};
-use windows::Win32::UI::WindowsAndMessaging::{UPDATELAYEREDWINDOWINFO, ULW_ALPHA, UpdateLayeredWindowIndirect};
+use windows::Win32::UI::WindowsAndMessaging::{
+    ULW_ALPHA, UPDATELAYEREDWINDOWINFO, UpdateLayeredWindowIndirect,
+};
 use windows::core::{Interface, PCWSTR, Result};
 
-use crate::config::{color_b, color_g, color_r, FontInfo};
+use crate::config::{FontInfo, color_b, color_g, color_r};
 use crate::win::wide;
 
 /// Installed font families, named in the UI locale, for the options font list.
@@ -81,7 +88,9 @@ fn collect_font_families() -> Result<Vec<String>> {
         for i in 0..count {
             let family = collection.GetFontFamily(i)?;
             let strings = family.GetFamilyNames()?;
-            let index = locale_index(&strings, &locale).or_else(|| locale_index(&strings, &english)).unwrap_or(0);
+            let index = locale_index(&strings, &locale)
+                .or_else(|| locale_index(&strings, &english))
+                .unwrap_or(0);
             if let Some(name) = read_localized(&strings, index)
                 && !name.is_empty()
             {
@@ -95,7 +104,11 @@ fn collect_font_families() -> Result<Vec<String>> {
 fn locale_index(names: &IDWriteLocalizedStrings, locale: &[u16]) -> Option<u32> {
     let mut index = 0u32;
     let mut exists = windows::core::BOOL(0);
-    unsafe { names.FindLocaleName(PCWSTR(locale.as_ptr()), &mut index, &mut exists).ok()? };
+    unsafe {
+        names
+            .FindLocaleName(PCWSTR(locale.as_ptr()), &mut index, &mut exists)
+            .ok()?
+    };
     (exists.0 != 0).then_some(index)
 }
 
@@ -133,7 +146,12 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
-        Rect { left, top, right, bottom }
+        Rect {
+            left,
+            top,
+            right,
+            bottom,
+        }
     }
     pub fn width(&self) -> i32 {
         self.right - self.left
@@ -204,10 +222,13 @@ fn create_d3d(driver: D3D_DRIVER_TYPE) -> Result<ID3D11Device> {
 impl Devices {
     pub fn new() -> Result<Self> {
         unsafe {
-            let d2d_factory: ID2D1Factory1 =
-                D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, Some(&D2D1_FACTORY_OPTIONS::default()))?;
+            let d2d_factory: ID2D1Factory1 = D2D1CreateFactory(
+                D2D1_FACTORY_TYPE_SINGLE_THREADED,
+                Some(&D2D1_FACTORY_OPTIONS::default()),
+            )?;
             let dwrite: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
-            let d3d = create_d3d(D3D_DRIVER_TYPE_HARDWARE).or_else(|_| create_d3d(D3D_DRIVER_TYPE_WARP))?;
+            let d3d = create_d3d(D3D_DRIVER_TYPE_HARDWARE)
+                .or_else(|_| create_d3d(D3D_DRIVER_TYPE_WARP))?;
             let dxgi: IDXGIDevice = d3d.cast()?;
             let d2d_device = d2d_factory.CreateDevice(&dxgi)?;
             let dc = d2d_device.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
@@ -246,14 +267,22 @@ pub struct Font {
 impl Font {
     pub fn new(dev: &Devices, info: &FontInfo, dpi: u32) -> Result<Self> {
         let size_px = (info.size.max(1) as f32 * dpi as f32 / 72.0).round();
-        let name = wide(if info.name.is_empty() { "Segoe UI" } else { &info.name });
+        let name = wide(if info.name.is_empty() {
+            "Segoe UI"
+        } else {
+            &info.name
+        });
         let locale = wide("");
         let format = unsafe {
             dev.dwrite.CreateTextFormat(
                 PCWSTR(name.as_ptr()),
                 None,
                 DWRITE_FONT_WEIGHT(if info.bold { 700 } else { 400 }),
-                if info.italic { DWRITE_FONT_STYLE_ITALIC } else { DWRITE_FONT_STYLE_NORMAL },
+                if info.italic {
+                    DWRITE_FONT_STYLE_ITALIC
+                } else {
+                    DWRITE_FONT_STYLE_NORMAL
+                },
                 DWRITE_FONT_STRETCH_NORMAL,
                 size_px,
                 PCWSTR(locale.as_ptr()),
@@ -299,10 +328,19 @@ impl Font {
         Ok(f)
     }
 
-    fn layout(&self, dev: &Devices, text: &str, w: f32, h: f32, align: DWRITE_TEXT_ALIGNMENT) -> Result<IDWriteTextLayout> {
+    fn layout(
+        &self,
+        dev: &Devices,
+        text: &str,
+        w: f32,
+        h: f32,
+        align: DWRITE_TEXT_ALIGNMENT,
+    ) -> Result<IDWriteTextLayout> {
         let t: Vec<u16> = text.encode_utf16().collect();
         unsafe {
-            let layout = dev.dwrite.CreateTextLayout(&t, &self.format, w.max(1.0), h.max(1.0))?;
+            let layout = dev
+                .dwrite
+                .CreateTextLayout(&t, &self.format, w.max(1.0), h.max(1.0))?;
             layout.SetTextAlignment(align)?;
             let range = DWRITE_TEXT_RANGE {
                 startPosition: 0,
@@ -385,7 +423,9 @@ impl Frame<'_> {
         unsafe {
             self.dev.brush.SetColor(&color(c, 255));
             if dashed {
-                self.dev.dc.DrawRectangle(&f, &self.dev.brush, 1.0, &self.dev.dot_style);
+                self.dev
+                    .dc
+                    .DrawRectangle(&f, &self.dev.brush, 1.0, &self.dev.dot_style);
             } else {
                 self.dev.dc.DrawRectangle(&f, &self.dev.brush, 1.0, None);
             }
@@ -420,10 +460,14 @@ impl Frame<'_> {
             Align::Center => DWRITE_TEXT_ALIGNMENT_CENTER,
             Align::Right => DWRITE_TEXT_ALIGNMENT_TRAILING,
         };
-        let Ok(layout) = self.font.layout(self.dev, text, r.width() as f32, r.height() as f32, a) else {
+        let Ok(layout) = self
+            .font
+            .layout(self.dev, text, r.width() as f32, r.height() as f32, a)
+        else {
             return;
         };
-        let mut options: D2D1_DRAW_TEXT_OPTIONS = D2D1_DRAW_TEXT_OPTIONS_NO_SNAP | D2D1_DRAW_TEXT_OPTIONS_CLIP;
+        let mut options: D2D1_DRAW_TEXT_OPTIONS =
+            D2D1_DRAW_TEXT_OPTIONS_NO_SNAP | D2D1_DRAW_TEXT_OPTIONS_CLIP;
         if self.color_emoji {
             options |= D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
         }
@@ -444,12 +488,18 @@ impl Frame<'_> {
 
 impl Renderer {
     pub fn new(hwnd: HWND, mode: RenderMode) -> Self {
-        Renderer { mode, hwnd, target: None }
+        Renderer {
+            mode,
+            hwnd,
+            target: None,
+        }
     }
 
     fn ensure_target(&mut self, dev: &Devices, w: u32, h: u32) -> Result<()> {
         let size_ok = match &self.target {
-            Some(Target::Layered { size, .. }) | Some(Target::Composition { size, .. }) => *size == (w, h),
+            Some(Target::Layered { size, .. }) | Some(Target::Composition { size, .. }) => {
+                *size == (w, h)
+            }
             None => false,
         };
         if size_ok {
@@ -467,7 +517,10 @@ impl Renderer {
                     MipLevels: 1,
                     ArraySize: 1,
                     Format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                    SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                    SampleDesc: DXGI_SAMPLE_DESC {
+                        Count: 1,
+                        Quality: 0,
+                    },
                     Usage: D3D11_USAGE_DEFAULT,
                     BindFlags: (D3D11_BIND_RENDER_TARGET.0 | D3D11_BIND_SHADER_RESOURCE.0) as u32,
                     CPUAccessFlags: 0,
@@ -475,7 +528,9 @@ impl Renderer {
                 };
                 let mut texture = None;
                 unsafe { dev.d3d.CreateTexture2D(&desc, None, Some(&mut texture))? };
-                let texture = texture.ok_or_else(|| windows::core::Error::from(windows::Win32::Foundation::E_FAIL))?;
+                let texture = texture.ok_or_else(|| {
+                    windows::core::Error::from(windows::Win32::Foundation::E_FAIL)
+                })?;
                 let surface: IDXGISurface1 = texture.cast()?;
                 let props = D2D1_BITMAP_PROPERTIES1 {
                     pixelFormat: D2D1_PIXEL_FORMAT {
@@ -499,7 +554,13 @@ impl Renderer {
             RenderMode::Composition => {
                 if let Some(Target::Composition { swap_chain, .. }) = &self.target {
                     unsafe {
-                        swap_chain.ResizeBuffers(2, w, h, DXGI_FORMAT_B8G8R8A8_UNORM, Default::default())?;
+                        swap_chain.ResizeBuffers(
+                            2,
+                            w,
+                            h,
+                            DXGI_FORMAT_B8G8R8A8_UNORM,
+                            Default::default(),
+                        )?;
                     }
                     if let Some(Target::Composition { size, .. }) = &mut self.target {
                         *size = (w, h);
@@ -514,7 +575,10 @@ impl Renderer {
                     Height: h,
                     Format: DXGI_FORMAT_B8G8R8A8_UNORM,
                     Stereo: false.into(),
-                    SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                    SampleDesc: DXGI_SAMPLE_DESC {
+                        Count: 1,
+                        Quality: 0,
+                    },
                     BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
                     BufferCount: 2,
                     Scaling: DXGI_SCALING_STRETCH,
@@ -522,7 +586,8 @@ impl Renderer {
                     AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
                     Flags: 0,
                 };
-                let swap_chain = unsafe { factory.CreateSwapChainForComposition(&dev.d3d, &desc, None)? };
+                let swap_chain =
+                    unsafe { factory.CreateSwapChainForComposition(&dev.d3d, &desc, None)? };
                 let device: IDCompositionDevice = unsafe { DCompositionCreateDevice(&dxgi)? };
                 let target = unsafe { device.CreateTargetForHwnd(self.hwnd, true)? };
                 let visual = unsafe { device.CreateVisual()? };
@@ -591,7 +656,11 @@ impl Renderer {
                 // Alpha 1 keeps the transparent area hit-testable, like the original renderer.
                 None => dev.dc.Clear(Some(&color(0, 1))),
             }
-            let frame = Frame { dev, font, color_emoji };
+            let frame = Frame {
+                dev,
+                font,
+                color_emoji,
+            };
             draw(&frame);
             let end = dev.dc.EndDraw(None, None);
             if let Err(e) = end {
@@ -601,7 +670,10 @@ impl Renderer {
             match self.target.as_ref().unwrap() {
                 Target::Layered { surface, .. } => {
                     let hdc = surface.GetDC(false).map_err(|e| e.code().0)?;
-                    let sz = SIZE { cx: w as i32, cy: h as i32 };
+                    let sz = SIZE {
+                        cx: w as i32,
+                        cy: h as i32,
+                    };
                     let src = POINT { x: 0, y: 0 };
                     let blend = BLENDFUNCTION {
                         BlendOp: AC_SRC_OVER as u8,
@@ -630,7 +702,10 @@ impl Renderer {
                 }
                 Target::Composition { swap_chain, .. } => {
                     dev.dc.SetTarget(None);
-                    swap_chain.Present(1, DXGI_PRESENT(0)).ok().map_err(|e| e.code().0)?;
+                    swap_chain
+                        .Present(1, DXGI_PRESENT(0))
+                        .ok()
+                        .map_err(|e| e.code().0)?;
                 }
             }
         }

@@ -3,7 +3,9 @@ pub mod ini;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::display_item::{all_items, DisplayItem, DisplayItemSet, HardwareItem, ItemKey, ItemOrder, ALL_BUILTIN};
+use crate::display_item::{
+    ALL_BUILTIN, DisplayItem, DisplayItemSet, HardwareItem, ItemKey, ItemOrder, all_items,
+};
 use crate::i18n;
 use crate::win;
 use ini::Ini;
@@ -431,7 +433,11 @@ pub fn resolve_config_dir() -> (PathBuf, bool, bool) {
     if !writable {
         portable = false;
     }
-    let dir = if portable { program_dir } else { win::appdata_dir() };
+    let dir = if portable {
+        program_dir
+    } else {
+        win::appdata_dir()
+    };
     let _ = std::fs::create_dir_all(&dir);
     (dir, portable, writable)
 }
@@ -462,7 +468,13 @@ pub fn read_always_run_as_admin(config_dir: &std::path::Path) -> bool {
     ini.get_bool("general", "always_run_as_admin", false)
 }
 
-fn load_colors(ini: &Ini, section: &str, key: &str, all: &[ItemKey], default_str: &str) -> HashMap<ItemKey, ItemColor> {
+fn load_colors(
+    ini: &Ini,
+    section: &str,
+    key: &str,
+    all: &[ItemKey],
+    default_str: &str,
+) -> HashMap<ItemKey, ItemColor> {
     let raw = ini.get_string(section, key, default_str);
     let parts: Vec<u32> = raw
         .split(',')
@@ -479,7 +491,13 @@ fn load_colors(ini: &Ini, section: &str, key: &str, all: &[ItemKey], default_str
     map
 }
 
-fn save_colors(ini: &mut Ini, section: &str, key: &str, all: &[ItemKey], colors: &HashMap<ItemKey, ItemColor>) {
+fn save_colors(
+    ini: &mut Ini,
+    section: &str,
+    key: &str,
+    all: &[ItemKey],
+    colors: &HashMap<ItemKey, ItemColor>,
+) {
     let mut s = String::new();
     for item in all {
         let c = colors.get(item).copied().unwrap_or_default();
@@ -489,7 +507,12 @@ fn save_colors(ini: &mut Ini, section: &str, key: &str, all: &[ItemKey], colors:
 }
 
 impl Settings {
-    pub fn load(config_dir: PathBuf, portable: bool, plugin_items: &[(String, String)], rt: &Runtime) -> Settings {
+    pub fn load(
+        config_dir: PathBuf,
+        portable: bool,
+        plugin_items: &[(String, String)],
+        rt: &Runtime,
+    ) -> Settings {
         let ini = Ini::load(&config_dir.join("config.ini"));
         let plugin_ids: Vec<String> = plugin_items.iter().map(|(id, _)| id.clone()).collect();
         let all = all_items(&plugin_ids);
@@ -504,15 +527,26 @@ impl Settings {
         };
 
         let system_dir = win::system_dir();
-        let taskmgr = system_dir.join("Taskmgr.exe").to_string_lossy().into_owned();
+        let taskmgr = system_dir
+            .join("Taskmgr.exe")
+            .to_string_lossy()
+            .into_owned();
 
         let general = GeneralSettings {
             check_update_when_start: ini.get_bool("general", "check_update_when_start", true),
             always_run_as_admin: ini.get_bool("general", "always_run_as_admin", false),
             efficiency_mode: ini.get_bool("general", "efficiency_mode", false),
-            update_source: ini.get_int("general", "update_source", if i18n::is_zh() { 1 } else { 0 }),
+            update_source: ini.get_int(
+                "general",
+                "update_source",
+                if i18n::is_zh() { 1 } else { 0 },
+            ),
             auto_run: false,
-            auto_run_by_task_scheduler: ini.get_bool("general", "auto_run_by_task_scheduler", false),
+            auto_run_by_task_scheduler: ini.get_bool(
+                "general",
+                "auto_run_by_task_scheduler",
+                false,
+            ),
             show_notify_icon: true,
             traffic_tip_enable: ini.get_bool("notify_tip", "traffic_tip_enable", false),
             traffic_tip_value: ini.get_int("notify_tip", "traffic_tip_value", 200),
@@ -548,7 +582,11 @@ impl Settings {
             portable_mode: portable,
             monitor_time_span: {
                 let v = ini.get_int("general", "monitor_time_span", 1000);
-                if (MONITOR_TIME_SPAN_MIN..=MONITOR_TIME_SPAN_MAX).contains(&v) { v } else { 1000 }
+                if (MONITOR_TIME_SPAN_MIN..=MONITOR_TIME_SPAN_MAX).contains(&v) {
+                    v
+                } else {
+                    1000
+                }
             },
             hard_disk_name: ini.get_string("general", "hard_disk_name", ""),
             cpu_core_name: ini.get_string("general", "cpu_core_name", "Core Average"),
@@ -558,13 +596,22 @@ impl Settings {
 
         let mut back_color = ini.get_u32("task_bar", "task_bar_back_color", dft_back);
         let mut transparent_color = ini.get_u32("task_bar", "transparent_color", dft_transparent);
-        let mut text_colors = load_colors(&ini, "task_bar", "task_bar_text_color", &all, &dft_text.to_string());
-
-        let mut display_item = DisplayItemSet::from_int(ini.get_int(
+        let mut text_colors = load_colors(
+            &ini,
             "task_bar",
-            "tbar_display_item",
-            DisplayItemSet((1 << DisplayItem::Up as u32) | (1 << DisplayItem::Down as u32)).to_int(),
-        ));
+            "task_bar_text_color",
+            &all,
+            &dft_text.to_string(),
+        );
+
+        let mut display_item = DisplayItemSet::from_int(
+            ini.get_int(
+                "task_bar",
+                "tbar_display_item",
+                DisplayItemSet((1 << DisplayItem::Up as u32) | (1 << DisplayItem::Down as u32))
+                    .to_int(),
+            ),
+        );
         for d in ALL_BUILTIN {
             if let Some(hw) = d.hardware() {
                 if !general.is_hardware_enabled(hw) {
@@ -597,7 +644,10 @@ impl Settings {
 
         let mut disp_str = HashMap::new();
         for d in ALL_BUILTIN {
-            disp_str.insert(ItemKey::Builtin(d), ini.get_string("task_bar", d.ini_key(), &d.default_label()));
+            disp_str.insert(
+                ItemKey::Builtin(d),
+                ini.get_string("task_bar", d.ini_key(), &d.default_label()),
+            );
         }
         for (id, label) in plugin_items {
             disp_str.insert(
@@ -615,25 +665,40 @@ impl Settings {
             font,
             disp_str,
             speed_short_mode: ini.get_bool("task_bar", "task_bar_speed_short_mode", true),
-            separate_value_unit_with_space: ini.get_bool("task_bar", "separate_value_unit_with_space", true),
+            separate_value_unit_with_space: ini.get_bool(
+                "task_bar",
+                "separate_value_unit_with_space",
+                true,
+            ),
             show_tool_tip: ini.get_bool("task_bar", "show_tool_tip", true),
             memory_display: MemoryDisplay::from_i32(ini.get_int("task_bar", "memory_display", 0)),
             unit_byte: ini.get_bool("task_bar", "unit_byte", true),
             speed_unit: SpeedUnit::from_i32(ini.get_int("task_bar", "task_bar_speed_unit", 0)),
             hide_unit: ini.get_bool("task_bar", "task_bar_hide_unit", false),
             hide_percent: ini.get_bool("task_bar", "task_bar_hide_percent", false),
-            double_click_action: DoubleClickAction::from_i32(ini.get_int("task_bar", "double_click_action", 0)),
+            double_click_action: DoubleClickAction::from_i32(ini.get_int(
+                "task_bar",
+                "double_click_action",
+                0,
+            )),
             double_click_exe: ini.get_string("task_bar", "double_click_exe", &taskmgr),
             auto_adapt_light_theme: rt.version.is_windows10_or_later()
                 && ini.get_bool("task_bar", "auto_adapt_light_theme", false),
             dark_default_style: ini.get_int("task_bar", "dark_default_style", 0),
-            light_default_style: ini.get_int("task_bar", "light_default_style", TASKBAR_DEFAULT_LIGHT_STYLE_INDEX),
+            light_default_style: ini.get_int(
+                "task_bar",
+                "light_default_style",
+                TASKBAR_DEFAULT_LIGHT_STYLE_INDEX,
+            ),
             auto_save_taskbar_color_settings_to_preset: ini.get_bool(
                 "task_bar",
                 "auto_save_taskbar_color_settings_to_preset",
                 true,
             ),
-            item_order: ItemOrder::from_string(&ini.get_string("task_bar", "item_order", ""), all.len()),
+            item_order: ItemOrder::from_string(
+                &ini.get_string("task_bar", "item_order", ""),
+                all.len(),
+            ),
             display_item,
             plugin_display_item: ini
                 .get_string("task_bar", "plugin_display_item", "")
@@ -641,7 +706,11 @@ impl Settings {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect(),
-            show_taskbar_wnd_in_secondary_display: ini.get_bool("task_bar", "show_taskbar_wnd_in_secondary_display", false),
+            show_taskbar_wnd_in_secondary_display: ini.get_bool(
+                "task_bar",
+                "show_taskbar_wnd_in_secondary_display",
+                false,
+            ),
             secondary_display_index: ini.get_int("task_bar", "secondary_display_index", 0),
             value_right_align: ini.get_bool("task_bar", "value_right_align", true),
             digits_number: ini.get_int("task_bar", "digits_number", 4),
@@ -655,13 +724,25 @@ impl Settings {
             vertical_margin: ini.get_int("task_bar", "vertical_margin", 0),
             window_offset_top: ini.get_int("task_bar", "window_offset_top", 0),
             window_offset_left: ini.get_int("task_bar", "window_offset_left", 0),
-            avoid_overlap_with_widgets: ini.get_bool("task_bar", "avoid_overlap_with_widgets", false),
+            avoid_overlap_with_widgets: ini.get_bool(
+                "task_bar",
+                "avoid_overlap_with_widgets",
+                false,
+            ),
             taskbar_left_space_win11: ini.get_int("task_bar", "taskbar_left_space_win11", 160),
             taskbar_right_space_win11: ini.get_int("task_bar", "taskbar_right_space_win11", 280),
             show_netspeed_figure: ini.get_bool("task_bar", "show_netspeed_figure", true),
             netspeed_figure_max_value: ini.get_int("task_bar", "netspeed_figure_max_value", 10),
-            netspeed_figure_max_value_unit: ini.get_int("task_bar", "netspeed_figure_max_value_unit", 1),
-            graph_color_following_system: ini.get_bool("task_bar", "graph_color_following_system", true),
+            netspeed_figure_max_value_unit: ini.get_int(
+                "task_bar",
+                "netspeed_figure_max_value_unit",
+                1,
+            ),
+            graph_color_following_system: ini.get_bool(
+                "task_bar",
+                "graph_color_following_system",
+                true,
+            ),
             enable_colorful_emoji: ini.get_bool("task_bar", "enable_colorful_emoji", true),
         };
         taskbar.text_colors = std::mem::take(&mut text_colors);
@@ -718,19 +799,31 @@ impl Settings {
         let mut ini = Ini::load(&self.config_path());
         let all = all_items(plugin_ids);
         let g = &self.general;
-        ini.set_bool("general", "check_update_when_start", g.check_update_when_start);
+        ini.set_bool(
+            "general",
+            "check_update_when_start",
+            g.check_update_when_start,
+        );
         ini.set_bool("general", "always_run_as_admin", g.always_run_as_admin);
         ini.set_bool("general", "efficiency_mode", g.efficiency_mode);
         ini.set_string("general", "language", &g.language);
         ini.set_int("general", "update_source", g.update_source);
         ini.set_bool("general", "show_all_interface", g.show_all_interface);
-        ini.set_int("general", "cpu_usage_acquire_method", g.cpu_usage_acquire_method);
+        ini.set_int(
+            "general",
+            "cpu_usage_acquire_method",
+            g.cpu_usage_acquire_method,
+        );
         ini.set_int("general", "monitor_time_span", g.monitor_time_span);
         ini.set_string("general", "hard_disk_name", &g.hard_disk_name);
         ini.set_string("general", "cpu_core_name", &g.cpu_core_name);
         ini.set_u32("general", "hardware_monitor_item", g.hardware_monitor_item);
         ini.set_string_list("general", "connections_hide", &g.connections_hide);
-        ini.set_bool("general", "auto_run_by_task_scheduler", g.auto_run_by_task_scheduler);
+        ini.set_bool(
+            "general",
+            "auto_run_by_task_scheduler",
+            g.auto_run_by_task_scheduler,
+        );
 
         ini.set_bool("connection", "auto_select", self.cfg.auto_select);
         ini.set_bool("connection", "select_all", self.cfg.select_all);
@@ -739,30 +832,91 @@ impl Settings {
         ini.set_bool("notify_tip", "traffic_tip_enable", g.traffic_tip_enable);
         ini.set_int("notify_tip", "traffic_tip_value", g.traffic_tip_value);
         ini.set_int("notify_tip", "traffic_tip_unit", g.traffic_tip_unit);
-        ini.set_bool("notify_tip", "memory_usage_tip_enable", g.memory_usage_tip.enable);
-        ini.set_int("notify_tip", "memory_tip_value", g.memory_usage_tip.tip_value);
-        ini.set_bool("notify_tip", "cpu_temperature_tip_enable", g.cpu_temp_tip.enable);
-        ini.set_int("notify_tip", "cpu_temperature_tip_value", g.cpu_temp_tip.tip_value);
-        ini.set_bool("notify_tip", "gpu_temperature_tip_enable", g.gpu_temp_tip.enable);
-        ini.set_int("notify_tip", "gpu_temperature_tip_value", g.gpu_temp_tip.tip_value);
-        ini.set_bool("notify_tip", "hdd_temperature_tip_enable", g.hdd_temp_tip.enable);
-        ini.set_int("notify_tip", "hdd_temperature_tip_value", g.hdd_temp_tip.tip_value);
-        ini.set_bool("notify_tip", "mainboard_temperature_tip_enable", g.mainboard_temp_tip.enable);
-        ini.set_int("notify_tip", "mainboard_temperature_tip_value", g.mainboard_temp_tip.tip_value);
+        ini.set_bool(
+            "notify_tip",
+            "memory_usage_tip_enable",
+            g.memory_usage_tip.enable,
+        );
+        ini.set_int(
+            "notify_tip",
+            "memory_tip_value",
+            g.memory_usage_tip.tip_value,
+        );
+        ini.set_bool(
+            "notify_tip",
+            "cpu_temperature_tip_enable",
+            g.cpu_temp_tip.enable,
+        );
+        ini.set_int(
+            "notify_tip",
+            "cpu_temperature_tip_value",
+            g.cpu_temp_tip.tip_value,
+        );
+        ini.set_bool(
+            "notify_tip",
+            "gpu_temperature_tip_enable",
+            g.gpu_temp_tip.enable,
+        );
+        ini.set_int(
+            "notify_tip",
+            "gpu_temperature_tip_value",
+            g.gpu_temp_tip.tip_value,
+        );
+        ini.set_bool(
+            "notify_tip",
+            "hdd_temperature_tip_enable",
+            g.hdd_temp_tip.enable,
+        );
+        ini.set_int(
+            "notify_tip",
+            "hdd_temperature_tip_value",
+            g.hdd_temp_tip.tip_value,
+        );
+        ini.set_bool(
+            "notify_tip",
+            "mainboard_temperature_tip_enable",
+            g.mainboard_temp_tip.enable,
+        );
+        ini.set_int(
+            "notify_tip",
+            "mainboard_temperature_tip_value",
+            g.mainboard_temp_tip.tip_value,
+        );
 
         let t = &self.taskbar;
         ini.set_u32("task_bar", "task_bar_back_color", t.back_color);
         ini.set_u32("task_bar", "transparent_color", t.transparent_color);
         ini.set_u32("task_bar", "status_bar_color", t.status_bar_color);
-        save_colors(&mut ini, "task_bar", "task_bar_text_color", &all, &t.text_colors);
-        ini.set_bool("task_bar", "specify_each_item_color", t.specify_each_item_color);
+        save_colors(
+            &mut ini,
+            "task_bar",
+            "task_bar_text_color",
+            &all,
+            &t.text_colors,
+        );
+        ini.set_bool(
+            "task_bar",
+            "specify_each_item_color",
+            t.specify_each_item_color,
+        );
         ini.set_int("task_bar", "tbar_display_item", t.display_item.to_int());
         ini.set_string("task_bar", "font_name", &t.font.name);
         ini.set_int("task_bar", "font_size", t.font.size);
-        let bits = (t.font.bold as i32) | ((t.font.italic as i32) << 1) | ((t.font.underline as i32) << 2) | ((t.font.strike_out as i32) << 3);
+        let bits = (t.font.bold as i32)
+            | ((t.font.italic as i32) << 1)
+            | ((t.font.underline as i32) << 2)
+            | ((t.font.strike_out as i32) << 3);
         ini.set_int("task_bar", "font_style", bits);
-        ini.set_bool("task_bar", "show_taskbar_wnd_in_secondary_display", t.show_taskbar_wnd_in_secondary_display);
-        ini.set_int("task_bar", "secondary_display_index", t.secondary_display_index);
+        ini.set_bool(
+            "task_bar",
+            "show_taskbar_wnd_in_secondary_display",
+            t.show_taskbar_wnd_in_secondary_display,
+        );
+        ini.set_int(
+            "task_bar",
+            "secondary_display_index",
+            t.secondary_display_index,
+        );
         for d in ALL_BUILTIN {
             ini.set_string("task_bar", d.ini_key(), &t.label(&ItemKey::Builtin(d)));
         }
@@ -781,11 +935,19 @@ impl Settings {
         ini.set_bool("task_bar", "value_right_align", t.value_right_align);
         ini.set_bool("task_bar", "horizontal_arrange", t.horizontal_arrange);
         ini.set_bool("task_bar", "show_status_bar", t.show_status_bar);
-        ini.set_bool("task_bar", "separate_value_unit_with_space", t.separate_value_unit_with_space);
+        ini.set_bool(
+            "task_bar",
+            "separate_value_unit_with_space",
+            t.separate_value_unit_with_space,
+        );
         ini.set_bool("task_bar", "show_tool_tip", t.show_tool_tip);
         ini.set_int("task_bar", "digits_number", t.digits_number);
         ini.set_int("task_bar", "memory_display", t.memory_display as i32);
-        ini.set_int("task_bar", "double_click_action", t.double_click_action as i32);
+        ini.set_int(
+            "task_bar",
+            "double_click_action",
+            t.double_click_action as i32,
+        );
         ini.set_string("task_bar", "double_click_exe", &t.double_click_exe);
         ini.set_bool("task_bar", "cm_graph_type", t.cm_graph_type);
         ini.set_bool("task_bar", "show_graph_dashed_box", t.show_graph_dashed_box);
@@ -793,19 +955,55 @@ impl Settings {
         ini.set_int("task_bar", "vertical_margin", t.vertical_margin);
         ini.set_int("task_bar", "window_offset_top", t.window_offset_top);
         ini.set_int("task_bar", "window_offset_left", t.window_offset_left);
-        ini.set_bool("task_bar", "avoid_overlap_with_widgets", t.avoid_overlap_with_widgets);
-        ini.set_int("task_bar", "taskbar_left_space_win11", t.taskbar_left_space_win11);
-        ini.set_int("task_bar", "taskbar_right_space_win11", t.taskbar_right_space_win11);
-        ini.set_bool("task_bar", "auto_adapt_light_theme", t.auto_adapt_light_theme);
+        ini.set_bool(
+            "task_bar",
+            "avoid_overlap_with_widgets",
+            t.avoid_overlap_with_widgets,
+        );
+        ini.set_int(
+            "task_bar",
+            "taskbar_left_space_win11",
+            t.taskbar_left_space_win11,
+        );
+        ini.set_int(
+            "task_bar",
+            "taskbar_right_space_win11",
+            t.taskbar_right_space_win11,
+        );
+        ini.set_bool(
+            "task_bar",
+            "auto_adapt_light_theme",
+            t.auto_adapt_light_theme,
+        );
         ini.set_int("task_bar", "dark_default_style", t.dark_default_style);
         ini.set_int("task_bar", "light_default_style", t.light_default_style);
         ini.set_string("task_bar", "item_order", &t.item_order.to_string());
-        ini.set_string("task_bar", "plugin_display_item", &t.plugin_display_item.join(","));
-        ini.set_bool("task_bar", "auto_save_taskbar_color_settings_to_preset", t.auto_save_taskbar_color_settings_to_preset);
+        ini.set_string(
+            "task_bar",
+            "plugin_display_item",
+            &t.plugin_display_item.join(","),
+        );
+        ini.set_bool(
+            "task_bar",
+            "auto_save_taskbar_color_settings_to_preset",
+            t.auto_save_taskbar_color_settings_to_preset,
+        );
         ini.set_bool("task_bar", "show_netspeed_figure", t.show_netspeed_figure);
-        ini.set_int("task_bar", "netspeed_figure_max_value", t.netspeed_figure_max_value);
-        ini.set_int("task_bar", "netspeed_figure_max_value_unit", t.netspeed_figure_max_value_unit);
-        ini.set_bool("task_bar", "graph_color_following_system", t.graph_color_following_system);
+        ini.set_int(
+            "task_bar",
+            "netspeed_figure_max_value",
+            t.netspeed_figure_max_value,
+        );
+        ini.set_int(
+            "task_bar",
+            "netspeed_figure_max_value_unit",
+            t.netspeed_figure_max_value_unit,
+        );
+        ini.set_bool(
+            "task_bar",
+            "graph_color_following_system",
+            t.graph_color_following_system,
+        );
         ini.set_bool("task_bar", "enable_colorful_emoji", t.enable_colorful_emoji);
 
         ini.set_bool("histroy_traffic", "use_log_scale", self.cfg.use_log_scale);
@@ -816,7 +1014,11 @@ impl Settings {
         ini.set_bool("other", "debug_log", self.other.debug_log);
         ini.set_bool("other", "last_light_mode", self.other.last_light_mode);
 
-        ini.set_string("config", "plugin_disabled", &self.cfg.plugin_disabled.join(","));
+        ini.set_string(
+            "config",
+            "plugin_disabled",
+            &self.cfg.plugin_disabled.join(","),
+        );
         ini.set_string("app", "version", env!("CARGO_PKG_VERSION"));
 
         for (i, s) in self.styles.iter().enumerate() {
@@ -824,11 +1026,33 @@ impl Settings {
                 continue;
             }
             let k = format!("default{}_", i + 1);
-            save_colors(&mut ini, "taskbar_default_style", &(k.clone() + "text_color"), &all, &s.text_colors);
-            ini.set_u32("taskbar_default_style", &(k.clone() + "back_color"), s.back_color);
-            ini.set_u32("taskbar_default_style", &(k.clone() + "transparent_color"), s.transparent_color);
-            ini.set_u32("taskbar_default_style", &(k.clone() + "status_bar_color"), s.status_bar_color);
-            ini.set_bool("taskbar_default_style", &(k + "specify_each_item_color"), s.specify_each_item_color);
+            save_colors(
+                &mut ini,
+                "taskbar_default_style",
+                &(k.clone() + "text_color"),
+                &all,
+                &s.text_colors,
+            );
+            ini.set_u32(
+                "taskbar_default_style",
+                &(k.clone() + "back_color"),
+                s.back_color,
+            );
+            ini.set_u32(
+                "taskbar_default_style",
+                &(k.clone() + "transparent_color"),
+                s.transparent_color,
+            );
+            ini.set_u32(
+                "taskbar_default_style",
+                &(k.clone() + "status_bar_color"),
+                s.status_bar_color,
+            );
+            ini.set_bool(
+                "taskbar_default_style",
+                &(k + "specify_each_item_color"),
+                s.specify_each_item_color,
+            );
         }
 
         ini.save().is_ok()
@@ -836,7 +1060,12 @@ impl Settings {
 
     /// `CTaskbarDefaultStyle::ApplyDefaultStyle`.
     pub fn apply_default_style(&mut self, index: i32) {
-        let Some(style) = self.styles.get(index.max(0) as usize).filter(|_| index >= 0).cloned() else {
+        let Some(style) = self
+            .styles
+            .get(index.max(0) as usize)
+            .filter(|_| index >= 0)
+            .cloned()
+        else {
             return;
         };
         if !style.is_valid() {
@@ -858,7 +1087,11 @@ impl Settings {
 
     /// `CTaskbarDefaultStyle::ModifyDefaultStyle`.
     pub fn modify_default_style(&mut self, index: i32) {
-        if let Some(style) = self.styles.get_mut(index.max(0) as usize).filter(|_| index >= 0) {
+        if let Some(style) = self
+            .styles
+            .get_mut(index.max(0) as usize)
+            .filter(|_| index >= 0)
+        {
             style.text_colors = self.taskbar.text_colors.clone();
             style.back_color = self.taskbar.back_color;
             style.transparent_color = self.taskbar.transparent_color;
@@ -872,10 +1105,26 @@ fn load_styles(ini: &Ini, all: &[ItemKey], rt: &Runtime) -> Vec<TaskbarStyle> {
     let mut styles = Vec::new();
     for i in 0..TASKBAR_DEFAULT_STYLE_NUM {
         let light_style = i == 2 || i == 3;
-        let default_text_color = if light_style { rgb(0, 0, 0) } else { rgb(255, 255, 255) };
-        let dark_back = if rt.version.is_windows8_or_81() { rgb(0, 0, 1) } else { 0 };
-        let default_back = if light_style { rgb(210, 210, 211) } else { dark_back };
-        let default_status = if light_style { rgb(165, 165, 165) } else { 0x005A5A5A };
+        let default_text_color = if light_style {
+            rgb(0, 0, 0)
+        } else {
+            rgb(255, 255, 255)
+        };
+        let dark_back = if rt.version.is_windows8_or_81() {
+            rgb(0, 0, 1)
+        } else {
+            0
+        };
+        let default_back = if light_style {
+            rgb(210, 210, 211)
+        } else {
+            dark_back
+        };
+        let default_status = if light_style {
+            rgb(165, 165, 165)
+        } else {
+            0x005A5A5A
+        };
         let k = format!("default{}_", i + 1);
         let (colors_default, specify_default) = match i {
             1 => (
@@ -885,7 +1134,13 @@ fn load_styles(ini: &Ini, all: &[ItemKey], rt: &Runtime) -> Vec<TaskbarStyle> {
             2 => ("31957,0,2533120,0,13857281,0,14354551,0,1145775,0,4328380,0,167504,0,31957,0,".to_string(), true),
             _ => (default_text_color.to_string(), false),
         };
-        let mut text_colors = load_colors(ini, "taskbar_default_style", &(k.clone() + "text_color"), all, &colors_default);
+        let mut text_colors = load_colors(
+            ini,
+            "taskbar_default_style",
+            &(k.clone() + "text_color"),
+            all,
+            &colors_default,
+        );
         if i == 1 || i == 2 {
             // Entries past the preset string fall back to the plain default text color.
             let parts = colors_default.split(',').filter(|s| !s.is_empty()).count();
@@ -906,10 +1161,26 @@ fn load_styles(ini: &Ini, all: &[ItemKey], rt: &Runtime) -> Vec<TaskbarStyle> {
         }
         styles.push(TaskbarStyle {
             text_colors,
-            back_color: ini.get_u32("taskbar_default_style", &(k.clone() + "back_color"), default_back),
-            transparent_color: ini.get_u32("taskbar_default_style", &(k.clone() + "transparent_color"), default_back),
-            status_bar_color: ini.get_u32("taskbar_default_style", &(k.clone() + "status_bar_color"), default_status),
-            specify_each_item_color: ini.get_bool("taskbar_default_style", &(k + "specify_each_item_color"), specify_default),
+            back_color: ini.get_u32(
+                "taskbar_default_style",
+                &(k.clone() + "back_color"),
+                default_back,
+            ),
+            transparent_color: ini.get_u32(
+                "taskbar_default_style",
+                &(k.clone() + "transparent_color"),
+                default_back,
+            ),
+            status_bar_color: ini.get_u32(
+                "taskbar_default_style",
+                &(k.clone() + "status_bar_color"),
+                default_status,
+            ),
+            specify_each_item_color: ini.get_bool(
+                "taskbar_default_style",
+                &(k + "specify_each_item_color"),
+                specify_default,
+            ),
         });
     }
     styles
@@ -926,7 +1197,11 @@ pub fn rgb_to_hsl(c: u32) -> (f64, f64, f64) {
         return (0.0, 0.0, l);
     }
     let d = max - min;
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
     let h = if max == r {
         (g - b) / d + if g < b { 6.0 } else { 0.0 }
     } else if max == g {
@@ -959,10 +1234,18 @@ pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> u32 {
             p
         }
     }
-    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let q = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
     let p = 2.0 * l - q;
     let r = hue(p, q, h + 1.0 / 3.0);
     let g = hue(p, q, h);
     let b = hue(p, q, h - 1.0 / 3.0);
-    rgb((r * 255.0).round() as u8, (g * 255.0).round() as u8, (b * 255.0).round() as u8)
+    rgb(
+        (r * 255.0).round() as u8,
+        (g * 255.0).round() as u8,
+        (b * 255.0).round() as u8,
+    )
 }

@@ -18,7 +18,9 @@ mod win;
 use std::io::Write;
 use std::sync::Mutex;
 
-use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, LPARAM, WPARAM};
+use windows::Win32::Foundation::{
+    CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, LPARAM, WPARAM,
+};
 use windows::Win32::System::Threading::{CreateMutexW, GetCurrentProcess, TerminateProcess};
 use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, PostMessageW};
 use windows::core::{PCWSTR, w};
@@ -29,7 +31,8 @@ struct FileLogger {
 
 impl log::Log for FileLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::Level::Warn && metadata.target().starts_with(env!("CARGO_CRATE_NAME"))
+        metadata.level() <= log::Level::Warn
+            && metadata.target().starts_with(env!("CARGO_CRATE_NAME"))
     }
 
     fn log(&self, record: &log::Record) {
@@ -58,7 +61,9 @@ fn init_logging(dir: &std::path::Path) {
         .append(true)
         .open(dir.join("error.log"))
         .ok();
-    let logger = Box::leak(Box::new(FileLogger { file: Mutex::new(file) }));
+    let logger = Box::leak(Box::new(FileLogger {
+        file: Mutex::new(file),
+    }));
     let _ = log::set_logger(logger);
     log::set_max_level(log::LevelFilter::Warn);
     let default_hook = std::panic::take_hook();

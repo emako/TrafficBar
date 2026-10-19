@@ -37,7 +37,8 @@ pub struct GiteeSource {
 impl GiteeSource {
     /// `repo_url` is a page like `https://gitee.com/owner/repo` (not the API URL).
     pub fn new(repo_url: &str) -> Result<Self, Error> {
-        let url = url::Url::parse(repo_url.trim_end_matches('/')).map_err(|e| Error::Other(e.to_string()))?;
+        let url = url::Url::parse(repo_url.trim_end_matches('/'))
+            .map_err(|e| Error::Other(e.to_string()))?;
         let mut segments = url
             .path_segments()
             .ok_or_else(|| Error::Other("Gitee URL has no path".into()))?
@@ -80,7 +81,11 @@ impl GiteeSource {
         let asset = release
             .assets
             .iter()
-            .find(|a| a.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(asset_name)))
+            .find(|a| {
+                a.name
+                    .as_deref()
+                    .is_some_and(|n| n.eq_ignore_ascii_case(asset_name))
+            })
             .ok_or_else(|| {
                 Error::Other(format!(
                     "Could not find asset '{}' in Gitee Release '{}'.",
@@ -95,7 +100,12 @@ impl GiteeSource {
 }
 
 impl UpdateSource for GiteeSource {
-    fn get_release_feed(&self, channel: &str, _app: &Manifest, _staged_user_id: &str) -> Result<VelopackAssetFeed, Error> {
+    fn get_release_feed(
+        &self,
+        channel: &str,
+        _app: &Manifest,
+        _staged_user_id: &str,
+    ) -> Result<VelopackAssetFeed, Error> {
         let releases = self.get_releases()?;
         let releases_file = format!("releases.{channel}.json");
         let options = HttpOptions {

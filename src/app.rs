@@ -110,7 +110,12 @@ fn post_monitor(ev: MonitorEvent) {
     let h = MAIN_HWND.load(Ordering::Relaxed);
     if h != 0 {
         unsafe {
-            let _ = PostMessageW(Some(HWND(h as *mut _)), WM_APP_MONITOR, WPARAM(0), LPARAM(0));
+            let _ = PostMessageW(
+                Some(HWND(h as *mut _)),
+                WM_APP_MONITOR,
+                WPARAM(0),
+                LPARAM(0),
+            );
         }
     }
 }
@@ -118,7 +123,10 @@ fn post_monitor(ev: MonitorEvent) {
 pub fn monitor_params(s: &Settings) -> MonitorParams {
     let g = &s.general;
     MonitorParams {
-        interval_ms: g.monitor_time_span.clamp(config::MONITOR_TIME_SPAN_MIN, config::MONITOR_TIME_SPAN_MAX) as u32,
+        interval_ms: g
+            .monitor_time_span
+            .clamp(config::MONITOR_TIME_SPAN_MIN, config::MONITOR_TIME_SPAN_MAX)
+            as u32,
         cpu_by_time: g.cpu_usage_acquire_method == 0,
         show_all_interface: g.show_all_interface,
         connections_hide: g.connections_hide.clone(),
@@ -176,7 +184,12 @@ pub fn start(ui_tx: UnboundedSender<UiCommand>) {
         NOTIFY_QUEUE.lock().unwrap().push_back((title, msg));
         if h != 0 {
             unsafe {
-                let _ = PostMessageW(Some(HWND(h as *mut _)), WM_APP_MONITOR, WPARAM(0), LPARAM(0));
+                let _ = PostMessageW(
+                    Some(HWND(h as *mut _)),
+                    WM_APP_MONITOR,
+                    WPARAM(0),
+                    LPARAM(0),
+                );
             }
         }
     });
@@ -184,7 +197,11 @@ pub fn start(ui_tx: UnboundedSender<UiCommand>) {
     let mut settings = Settings::load(config_dir.clone(), portable, &plugins.item_labels(), &rt);
     settings.general.auto_run = get_auto_run(settings.general.auto_run_by_task_scheduler);
     if settings.taskbar.auto_adapt_light_theme && settings.other.last_light_mode != rt.light_theme {
-        let idx = if rt.light_theme { settings.taskbar.light_default_style } else { settings.taskbar.dark_default_style };
+        let idx = if rt.light_theme {
+            settings.taskbar.light_default_style
+        } else {
+            settings.taskbar.dark_default_style
+        };
         settings.apply_default_style(idx);
     }
     settings.other.last_light_mode = rt.light_theme;
@@ -248,7 +265,9 @@ static NOTIFY_QUEUE: Mutex<VecDeque<(String, String)>> = Mutex::new(VecDeque::ne
 
 fn after_taskbar_opened() {
     let (hwnd, dpi) = taskbar::with(|t| (t.hwnd.0 as isize, t.dpi)).unwrap_or((0, 96));
-    state::with(|s| plugin::update_settings(&s.settings.taskbar, dpi as i32, s.rt.theme_color, hwnd));
+    state::with(|s| {
+        plugin::update_settings(&s.settings.taskbar, dpi as i32, s.rt.theme_color, hwnd)
+    });
 }
 
 fn create_main_window() -> HWND {
@@ -286,7 +305,12 @@ fn taskbar_created_msg() -> u32 {
     *ID.get_or_init(|| unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) })
 }
 
-unsafe extern "system" fn main_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn main_wndproc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     match msg {
         WM_APP_QUEUE => {
             loop {
@@ -340,7 +364,9 @@ unsafe extern "system" fn main_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
                 WM_LBUTTONUP | WM_LBUTTONDBLCLK => send_ui(UiCommand::Activate),
                 WM_RBUTTONUP => {
                     send_ui(UiCommand::HideTooltip);
-                    let owner = taskbar::hwnd().filter(|_| taskbar::is_open()).unwrap_or(hwnd);
+                    let owner = taskbar::hwnd()
+                        .filter(|_| taskbar::is_open())
+                        .unwrap_or(hwnd);
                     tray::menu::show_context_menu(owner, None);
                 }
                 _ => {}
@@ -412,7 +438,12 @@ fn on_taskbar_timer() {
         t.taskbar += 1;
         t.taskbar
     });
-    let (secondary, has_window) = state::with(|s| (s.settings.taskbar.show_taskbar_wnd_in_secondary_display, s.taskbar_hwnd != 0));
+    let (secondary, has_window) = state::with(|s| {
+        (
+            s.settings.taskbar.show_taskbar_wnd_in_secondary_display,
+            s.taskbar_hwnd != 0,
+        )
+    });
     if tick % 5 == 0 && secondary {
         let n = taskbar::secondary_taskbars().len();
         let changed = TICKS.with(|t| {
@@ -464,7 +495,11 @@ fn on_main_timer() {
                 reopen_taskbar();
             } else if retry == MAX_INSERT_RETRY + 1 {
                 let code = taskbar::with(|t| t.error_code).unwrap_or(0);
-                win::message_box(None, &format!("{}{}", tr("IDS_CONNOT_INSERT_TO_TASKBAR"), code), true);
+                win::message_box(
+                    None,
+                    &format!("{}{}", tr("IDS_CONNOT_INSERT_TO_TASKBAR"), code),
+                    true,
+                );
             }
         } else {
             TICKS.with(|t| t.borrow_mut().insert_retry = 0);
@@ -484,7 +519,11 @@ fn check_theme() {
         s.rt.light_theme = light;
         s.settings.other.last_light_mode = light;
         if s.settings.taskbar.auto_adapt_light_theme {
-            let idx = if light { s.settings.taskbar.light_default_style } else { s.settings.taskbar.dark_default_style };
+            let idx = if light {
+                s.settings.taskbar.light_default_style
+            } else {
+                s.settings.taskbar.dark_default_style
+            };
             s.settings.apply_default_style(idx);
         }
         s.save_settings();
@@ -512,14 +551,46 @@ fn check_notifications(tick: u64) {
         let mut t = t.borrow_mut();
         let tick = tick as i64;
         let checks = [
-            (g.memory_usage_tip, snap.memory_usage, format!("{} {}%!", tr("IDS_MEMORY_UDAGE_EXCEED"), snap.memory_usage)),
-            (g.cpu_temp_tip, snap.cpu_temperature as i32, format!("{} {}°C!", tr("IDS_CPU_TEMPERATURE_EXCEED"), snap.cpu_temperature as i32)),
-            (g.gpu_temp_tip, snap.gpu_temperature as i32, format!("{} {}°C!", tr("IDS_GPU_TEMPERATURE_EXCEED"), snap.gpu_temperature as i32)),
-            (g.hdd_temp_tip, snap.hdd_temperature as i32, format!("{} {}°C!", tr("IDS_HDD_TEMPERATURE_EXCEED"), snap.hdd_temperature as i32)),
+            (
+                g.memory_usage_tip,
+                snap.memory_usage,
+                format!("{} {}%!", tr("IDS_MEMORY_UDAGE_EXCEED"), snap.memory_usage),
+            ),
+            (
+                g.cpu_temp_tip,
+                snap.cpu_temperature as i32,
+                format!(
+                    "{} {}°C!",
+                    tr("IDS_CPU_TEMPERATURE_EXCEED"),
+                    snap.cpu_temperature as i32
+                ),
+            ),
+            (
+                g.gpu_temp_tip,
+                snap.gpu_temperature as i32,
+                format!(
+                    "{} {}°C!",
+                    tr("IDS_GPU_TEMPERATURE_EXCEED"),
+                    snap.gpu_temperature as i32
+                ),
+            ),
+            (
+                g.hdd_temp_tip,
+                snap.hdd_temperature as i32,
+                format!(
+                    "{} {}°C!",
+                    tr("IDS_HDD_TEMPERATURE_EXCEED"),
+                    snap.hdd_temperature as i32
+                ),
+            ),
             (
                 g.mainboard_temp_tip,
                 snap.main_board_temperature as i32,
-                format!("{} {}°C!", tr("IDS_MBD_TEMPERATURE_EXCEED"), snap.main_board_temperature as i32),
+                format!(
+                    "{} {}°C!",
+                    tr("IDS_MBD_TEMPERATURE_EXCEED"),
+                    snap.main_board_temperature as i32
+                ),
             ),
         ];
         for (slot, (tip, value, text)) in checks.into_iter().enumerate() {
@@ -528,7 +599,10 @@ fn check_notifications(tick: u64) {
             }
             let last = t.last_values[slot];
             let since = tick - t.notify_times[slot];
-            if last < tip.tip_value && value >= tip.tip_value && (t.notify_times[slot] == 0 || since > interval) {
+            if last < tip.tip_value
+                && value >= tip.tip_value
+                && (t.notify_times[slot] == 0 || since > interval)
+            {
                 pending.push(text);
                 t.notify_times[slot] = tick;
             }
@@ -565,7 +639,11 @@ fn handle_monitor_event(ev: MonitorEvent) {
             });
             send_ui(UiCommand::Refresh);
         }
-        MonitorEvent::Connections { list, selected, selection } => {
+        MonitorEvent::Connections {
+            list,
+            selected,
+            selection,
+        } => {
             state::with_mut(|s| {
                 s.connections = list;
                 s.selected_connection = selected;
@@ -601,7 +679,9 @@ fn handle_main_msg(msg: MainMsg) {
     match msg {
         MainMsg::RenderFailed { mode, code } => {
             if mode == RenderMode::Layered {
-                log::warn!("UpdateLayeredWindowIndirect failed ({code}), switching to DirectComposition");
+                log::warn!(
+                    "UpdateLayeredWindowIndirect failed ({code}), switching to DirectComposition"
+                );
                 state::with_mut(|s| s.render_mode = RenderMode::Composition);
                 reopen_taskbar();
             } else {
@@ -609,7 +689,12 @@ fn handle_main_msg(msg: MainMsg) {
             }
         }
         MainMsg::DoubleClick => {
-            let (action, exe) = state::with(|s| (s.settings.taskbar.double_click_action, s.settings.taskbar.double_click_exe.clone()));
+            let (action, exe) = state::with(|s| {
+                (
+                    s.settings.taskbar.double_click_action,
+                    s.settings.taskbar.double_click_exe.clone(),
+                )
+            });
             match action {
                 DoubleClickAction::ConnectionInfo => send_ui(UiCommand::OpenNetworkInfo),
                 DoubleClickAction::HistoryTraffic => send_ui(UiCommand::OpenHistory),
@@ -619,9 +704,16 @@ fn handle_main_msg(msg: MainMsg) {
                 DoubleClickAction::None => {}
             }
         }
-        MainMsg::SettingsChanged { reopen_taskbar: reopen } => {
-            let (params, rt, efficiency) =
-                state::with(|s| (monitor_params(&s.settings), s.rt.clone(), s.settings.general.efficiency_mode));
+        MainMsg::SettingsChanged {
+            reopen_taskbar: reopen,
+        } => {
+            let (params, rt, efficiency) = state::with(|s| {
+                (
+                    monitor_params(&s.settings),
+                    s.rt.clone(),
+                    s.settings.general.efficiency_mode,
+                )
+            });
             win::set_efficiency_mode(efficiency);
             state::with(|s| {
                 if let Some(m) = &s.monitor {
@@ -671,7 +763,11 @@ fn relaunch(as_admin: bool) {
         s.save_settings();
     });
     shutdown();
-    let started = if as_admin { win::restart_as_admin() } else { win::restart() };
+    let started = if as_admin {
+        win::restart_as_admin()
+    } else {
+        win::restart()
+    };
     if started {
         send_ui(UiCommand::Quit);
     } else {
@@ -693,7 +789,13 @@ fn restart_monitor() {
             s.plugins.clone(),
         )
     });
-    let handle = monitor::start(params, selection, HistoryTraffic::load(path), plugins, Box::new(post_monitor));
+    let handle = monitor::start(
+        params,
+        selection,
+        HistoryTraffic::load(path),
+        plugins,
+        Box::new(post_monitor),
+    );
     state::with_mut(|s| s.monitor = Some(handle));
 }
 
@@ -720,7 +822,10 @@ pub fn exit() {
 
 /// Saves state, starts Velopack's updater, then kills this process without running
 /// `DLL_PROCESS_DETACH` (some GPU drivers hang there longer than the updater will wait).
-pub fn apply_update_and_restart(manager: &UpdateManager, update: &UpdateInfo) -> Result<(), String> {
+pub fn apply_update_and_restart(
+    manager: &UpdateManager,
+    update: &UpdateInfo,
+) -> Result<(), String> {
     state::with(|s| {
         s.save_settings();
     });
@@ -748,7 +853,11 @@ fn task_name() -> String {
 
 fn exe_path_reg() -> String {
     let p = win::exe_path().to_string_lossy().into_owned();
-    if p.contains(' ') { format!("\"{p}\"") } else { p }
+    if p.contains(' ') {
+        format!("\"{p}\"")
+    } else {
+        p
+    }
 }
 
 fn schtasks(args: &[&str]) -> bool {
@@ -767,9 +876,13 @@ pub fn get_auto_run(task_scheduler: bool) -> bool {
     if task_scheduler {
         schtasks(&["/Query", "/TN", &task_name()])
     } else {
-        win::reg_string(windows::Win32::System::Registry::HKEY_CURRENT_USER, RUN_KEY, RUN_VALUE)
-            .map(|v| v == exe_path_reg())
-            .unwrap_or(false)
+        win::reg_string(
+            windows::Win32::System::Registry::HKEY_CURRENT_USER,
+            RUN_KEY,
+            RUN_VALUE,
+        )
+        .map(|v| v == exe_path_reg())
+        .unwrap_or(false)
     }
 }
 
@@ -780,14 +893,24 @@ pub fn set_auto_run(enable: bool, task_scheduler: bool) -> Result<(), String> {
         unsafe {
             let mut key = HKEY::default();
             let p = win::wide(RUN_KEY);
-            if RegOpenKeyExW(HKEY_CURRENT_USER, PCWSTR(p.as_ptr()), Some(0), KEY_SET_VALUE | KEY_QUERY_VALUE, &mut key).is_err() {
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(p.as_ptr()),
+                Some(0),
+                KEY_SET_VALUE | KEY_QUERY_VALUE,
+                &mut key,
+            )
+            .is_err()
+            {
                 return Err(tr("IDS_AUTORUN_FAILED_NO_KEY"));
             }
             let name = win::wide(RUN_VALUE);
             let r = if on {
                 let v = win::wide(&exe_path_reg());
                 let bytes = std::slice::from_raw_parts(v.as_ptr() as *const u8, v.len() * 2);
-                RegSetValueExW(key, PCWSTR(name.as_ptr()), Some(0), REG_SZ, Some(bytes)).ok().map_err(|_| tr("IDS_AUTORUN_FAILED_NO_ACCESS"))
+                RegSetValueExW(key, PCWSTR(name.as_ptr()), Some(0), REG_SZ, Some(bytes))
+                    .ok()
+                    .map_err(|_| tr("IDS_AUTORUN_FAILED_NO_ACCESS"))
             } else {
                 let _ = RegDeleteValueW(key, PCWSTR(name.as_ptr()));
                 Ok(())
@@ -832,9 +955,20 @@ pub fn set_auto_run(enable: bool, task_scheduler: bool) -> Result<(), String> {
             data.extend_from_slice(&u.to_le_bytes());
         }
         std::fs::write(&path, data).map_err(|e| e.to_string())?;
-        let ok = schtasks(&["/Create", "/TN", &name, "/XML", &path.to_string_lossy(), "/F"]);
+        let ok = schtasks(&[
+            "/Create",
+            "/TN",
+            &name,
+            "/XML",
+            &path.to_string_lossy(),
+            "/F",
+        ]);
         let _ = std::fs::remove_file(&path);
-        if ok { Ok(()) } else { Err(tr("IDS_SET_AUTO_RUN_FAILED_WARNING")) }
+        if ok {
+            Ok(())
+        } else {
+            Err(tr("IDS_SET_AUTO_RUN_FAILED_WARNING"))
+        }
     };
     if task_scheduler {
         if enable {
@@ -850,7 +984,10 @@ pub fn set_auto_run(enable: bool, task_scheduler: bool) -> Result<(), String> {
 }
 
 fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// Applies a modified settings object coming from the options window.
@@ -859,15 +996,22 @@ pub fn apply_settings(new: Settings) {
         let old = std::mem::replace(&mut s.settings, new);
         let t_old = &old.taskbar;
         let t_new = &s.settings.taskbar;
-        let reopen = t_old.show_taskbar_wnd_in_secondary_display != t_new.show_taskbar_wnd_in_secondary_display
+        let reopen = t_old.show_taskbar_wnd_in_secondary_display
+            != t_new.show_taskbar_wnd_in_secondary_display
             || t_old.secondary_display_index != t_new.secondary_display_index
             || t_old.tbar_wnd_on_left != t_new.tbar_wnd_on_left;
         if !s.save_settings() {
-            let text = tr("IDS_CONNOT_SAVE_CONFIG_WARNING").replace("<%file_path%>", &s.settings.config_path().to_string_lossy());
-            post(MainMsg::MessageBox { text, warning: true });
+            let text = tr("IDS_CONNOT_SAVE_CONFIG_WARNING")
+                .replace("<%file_path%>", &s.settings.config_path().to_string_lossy());
+            post(MainMsg::MessageBox {
+                text,
+                warning: true,
+            });
         }
         s.revision += 1;
         reopen
     });
-    post(MainMsg::SettingsChanged { reopen_taskbar: reopen });
+    post(MainMsg::SettingsChanged {
+        reopen_taskbar: reopen,
+    });
 }

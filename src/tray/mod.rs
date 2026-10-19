@@ -9,8 +9,8 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{GetDpiForSystem, GetSystemMetricsForDpi};
 use windows::Win32::UI::Shell::{
-    NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_SHOWTIP, NIF_TIP, NIIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY,
-    NOTIFYICONDATAW, Shell_NotifyIconW,
+    NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_SHOWTIP, NIF_TIP, NIIF_INFO, NIM_ADD, NIM_DELETE,
+    NIM_MODIFY, NOTIFYICONDATAW, Shell_NotifyIconW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyIcon, HICON, IMAGE_ICON, LR_DEFAULTCOLOR, LoadImageW, SM_CXSMICON,
@@ -39,12 +39,23 @@ thread_local! {
 /// Loads the notify icon for the given taskbar theme: the white icon for dark taskbars and the black
 /// one for light taskbars (`AutoSelectNotifyIcon`).
 pub fn load_notify_icon(light: bool, size: i32) -> HICON {
-    let id = if light { IDI_NOTIFY_LIGHT } else { IDI_NOTIFY_DARK };
+    let id = if light {
+        IDI_NOTIFY_LIGHT
+    } else {
+        IDI_NOTIFY_DARK
+    };
     unsafe {
         let hinst = GetModuleHandleW(None).unwrap_or_default();
-        LoadImageW(Some(hinst.into()), PCWSTR(id as usize as *const u16), IMAGE_ICON, size, size, LR_DEFAULTCOLOR)
-            .map(|h| HICON(h.0))
-            .unwrap_or_default()
+        LoadImageW(
+            Some(hinst.into()),
+            PCWSTR(id as usize as *const u16),
+            IMAGE_ICON,
+            size,
+            size,
+            LR_DEFAULTCOLOR,
+        )
+        .map(|h| HICON(h.0))
+        .unwrap_or_default()
     }
 }
 
@@ -130,8 +141,16 @@ pub fn update_tip() {
         let snap = &s.snapshot;
         let g = &s.settings.general;
         let mut tip = tr("APP_NAME");
-        tip += &format!("\n{}: {}/s", tr("IDS_UPLOAD"), format::data_size_to_string(snap.out_speed, true));
-        tip += &format!("\n{}: {}/s", tr("IDS_DOWNLOAD"), format::data_size_to_string(snap.in_speed, true));
+        tip += &format!(
+            "\n{}: {}/s",
+            tr("IDS_UPLOAD"),
+            format::data_size_to_string(snap.out_speed, true)
+        );
+        tip += &format!(
+            "\n{}: {}/s",
+            tr("IDS_DOWNLOAD"),
+            format::data_size_to_string(snap.in_speed, true)
+        );
         tip += &format!("\nCPU: {} %", snap.cpu_usage);
         tip += &format!("\n{}: {} %", tr("IDS_MEMORY"), snap.memory_usage);
         if s.rt.elevated && g.any_hardware_enabled() {
@@ -140,16 +159,32 @@ pub fn update_tip() {
                 tip += &format!("\n{}: {} %", tr("IDS_GPU_USAGE"), snap.gpu_usage);
             }
             if g.is_hardware_enabled(Cpu) && snap.cpu_temperature > 0.0 {
-                tip += &format!("\n{}: {} °C", tr("IDS_CPU_TEMPERATURE"), snap.cpu_temperature as i32);
+                tip += &format!(
+                    "\n{}: {} °C",
+                    tr("IDS_CPU_TEMPERATURE"),
+                    snap.cpu_temperature as i32
+                );
             }
             if g.is_hardware_enabled(Gpu) && snap.gpu_temperature > 0.0 {
-                tip += &format!("\n{}: {} °C", tr("IDS_GPU_TEMPERATURE"), snap.gpu_temperature as i32);
+                tip += &format!(
+                    "\n{}: {} °C",
+                    tr("IDS_GPU_TEMPERATURE"),
+                    snap.gpu_temperature as i32
+                );
             }
             if g.is_hardware_enabled(Hdd) && snap.hdd_temperature > 0.0 {
-                tip += &format!("\n{}: {} °C", tr("IDS_HDD_TEMPERATURE"), snap.hdd_temperature as i32);
+                tip += &format!(
+                    "\n{}: {} °C",
+                    tr("IDS_HDD_TEMPERATURE"),
+                    snap.hdd_temperature as i32
+                );
             }
             if g.is_hardware_enabled(MainBoard) && snap.main_board_temperature > 0.0 {
-                tip += &format!("\n{}: {} °C", tr("IDS_MAINBOARD_TEMPERATURE"), snap.main_board_temperature as i32);
+                tip += &format!(
+                    "\n{}: {} °C",
+                    tr("IDS_MAINBOARD_TEMPERATURE"),
+                    snap.main_board_temperature as i32
+                );
             }
         }
         tip

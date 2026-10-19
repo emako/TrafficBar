@@ -8,7 +8,12 @@ const RESULT_CAP: usize = 256 * 1024;
 static HARDWARE_DLL: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/TrafficBar.Hardware.dll"));
 
 unsafe extern "C" {
-    fn hardware_clr_call(assembly: *const u8, assembly_len: usize, arg: *const u16, ret: *mut u32) -> i32;
+    fn hardware_clr_call(
+        assembly: *const u8,
+        assembly_len: usize,
+        arg: *const u16,
+        ret: *mut u32,
+    ) -> i32;
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -76,7 +81,11 @@ impl HardwareMonitor {
     }
 
     pub fn configure(&mut self, flags: HardwareFlags) {
-        if self.worker.as_ref().is_some_and(|worker| worker.is_finished()) {
+        if self
+            .worker
+            .as_ref()
+            .is_some_and(|worker| worker.is_finished())
+        {
             self.worker = None;
         }
         if !flags.any() {
@@ -91,7 +100,10 @@ impl HardwareMonitor {
         }
         if flags == self.flags
             && self.worker.is_some()
-            && matches!(self.state, HardwareState::Running | HardwareState::Failed(_))
+            && matches!(
+                self.state,
+                HardwareState::Running | HardwareState::Failed(_)
+            )
         {
             return;
         }
@@ -125,13 +137,19 @@ impl HardwareMonitor {
         let mailbox = Arc::clone(&self.mailbox);
         let latest = Arc::clone(&self.latest);
         let shared_state = Arc::clone(&self.shared_state);
-        match std::thread::Builder::new().name("hardware".into()).spawn(move || worker(mailbox, latest, shared_state)) {
+        match std::thread::Builder::new()
+            .name("hardware".into())
+            .spawn(move || worker(mailbox, latest, shared_state))
+        {
             Ok(handle) => {
                 self.worker = Some(handle);
                 true
             }
             Err(err) => {
-                self.assign(HardwareState::Failed(format!("failed to start hardware thread: {err}")), false);
+                self.assign(
+                    HardwareState::Failed(format!("failed to start hardware thread: {err}")),
+                    false,
+                );
                 false
             }
         }
@@ -146,7 +164,10 @@ impl HardwareMonitor {
         }
         let mut mail = lock(&self.mailbox.inner);
         mail.generation = mail.generation.wrapping_add(1);
-        mail.job = Some(Job { generation: mail.generation, flags });
+        mail.job = Some(Job {
+            generation: mail.generation,
+            flags,
+        });
         *lock(&self.latest) = None;
         self.state = state.clone();
         *lock(&self.shared_state) = state;
@@ -169,7 +190,11 @@ impl Drop for HardwareMonitor {
     }
 }
 
-fn worker(mailbox: Arc<Mailbox>, latest: Arc<Mutex<Option<HardwareInfo>>>, shared_state: Arc<Mutex<HardwareState>>) {
+fn worker(
+    mailbox: Arc<Mailbox>,
+    latest: Arc<Mutex<Option<HardwareInfo>>>,
+    shared_state: Arc<Mutex<HardwareState>>,
+) {
     let mut host: Option<ClrHost> = None;
     let mut opened = false;
     let mut session = 0u64;
@@ -194,18 +219,30 @@ fn worker(mailbox: Arc<Mailbox>, latest: Arc<Mutex<Option<HardwareInfo>>>, share
                 if host.is_none() {
                     host = Some(ClrHost);
                 }
-                let Some(host_ref) = host.as_ref() else { continue };
+                let Some(host_ref) = host.as_ref() else {
+                    continue;
+                };
                 match open_monitor(host_ref, flags) {
                     Ok(()) => {
                         let info = match sample(host_ref) {
                             Ok(info) => info,
-                            Err(err) => HardwareInfo { error: Some(err), ..HardwareInfo::default() },
+                            Err(err) => HardwareInfo {
+                                error: Some(err),
+                                ..HardwareInfo::default()
+                            },
                         };
                         let state = match info.error.clone() {
                             Some(err) => HardwareState::Failed(err),
                             None => HardwareState::Running,
                         };
-                        if publish(&mailbox, &latest, &shared_state, job.generation, state, Some(info)) {
+                        if publish(
+                            &mailbox,
+                            &latest,
+                            &shared_state,
+                            job.generation,
+                            state,
+                            Some(info),
+                        ) {
                             opened = true;
                             session = job.generation;
                         } else {
@@ -213,7 +250,14 @@ fn worker(mailbox: Arc<Mailbox>, latest: Arc<Mutex<Option<HardwareInfo>>>, share
                         }
                     }
                     Err(err) => {
-                        publish(&mailbox, &latest, &shared_state, job.generation, HardwareState::Failed(err), None);
+                        publish(
+                            &mailbox,
+                            &latest,
+                            &shared_state,
+                            job.generation,
+                            HardwareState::Failed(err),
+                            None,
+                        );
                     }
                 }
             }
@@ -228,10 +272,18 @@ fn worker(mailbox: Arc<Mailbox>, latest: Arc<Mutex<Option<HardwareInfo>>>, share
                             Some(err) => HardwareState::Failed(err),
                             None => HardwareState::Running,
                         };
-                        let _ = publish(&mailbox, &latest, &shared_state, session, state, Some(info));
+                        let _ =
+                            publish(&mailbox, &latest, &shared_state, session, state, Some(info));
                     }
                     Err(err) => {
-                        let _ = publish(&mailbox, &latest, &shared_state, session, HardwareState::Failed(err), None);
+                        let _ = publish(
+                            &mailbox,
+                            &latest,
+                            &shared_state,
+                            session,
+                            HardwareState::Failed(err),
+                            None,
+                        );
                     }
                 }
             }
@@ -311,7 +363,12 @@ struct Mailbox {
 impl Mailbox {
     fn new() -> Self {
         Mailbox {
-            inner: Mutex::new(Mail { generation: 0, job: None, update: false, shutdown: false }),
+            inner: Mutex::new(Mail {
+                generation: 0,
+                job: None,
+                update: false,
+                shutdown: false,
+            }),
             cvar: Condvar::new(),
         }
     }
@@ -358,10 +415,21 @@ struct ClrHost;
 impl ClrHost {
     fn call(&self, op: &str, payload: &str) -> Result<String, String> {
         let mut buf = vec![0u8; RESULT_CAP];
-        let arg = format!("{}\n{}\n{op}\n{payload}", buf.as_mut_ptr() as usize, buf.len());
+        let arg = format!(
+            "{}\n{}\n{op}\n{payload}",
+            buf.as_mut_ptr() as usize,
+            buf.len()
+        );
         let arg_w = crate::win::wide(&arg);
         let mut ret = 0u32;
-        let hr = unsafe { hardware_clr_call(HARDWARE_DLL.as_ptr(), HARDWARE_DLL.len(), arg_w.as_ptr(), &mut ret) };
+        let hr = unsafe {
+            hardware_clr_call(
+                HARDWARE_DLL.as_ptr(),
+                HARDWARE_DLL.len(),
+                arg_w.as_ptr(),
+                &mut ret,
+            )
+        };
         if hr < 0 {
             return Err(format!("CLR call failed: 0x{:08X}", hr as u32));
         }
@@ -385,7 +453,10 @@ mod tests {
         let host = ClrHost;
         let text = host.call("init", "cpu").expect("dispatch");
         let info: HardwareInfo = serde_json::from_str(&text).expect("json");
-        assert!(info.error.as_deref().is_some_and(|err| !err.is_empty()), "{text}");
+        assert!(
+            info.error.as_deref().is_some_and(|err| !err.is_empty()),
+            "{text}"
+        );
         let closed = host.call("close", "").expect("close");
         assert_eq!(closed, "{}");
     }

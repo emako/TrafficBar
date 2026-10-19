@@ -64,10 +64,14 @@ fn netfx_um_include() -> PathBuf {
     if let Ok(program_files) = std::env::var("ProgramFiles(x86)") {
         roots.push(PathBuf::from(program_files).join(r"Windows Kits\NETFXSDK"));
     }
-    roots.push(PathBuf::from(r"C:\Program Files (x86)\Windows Kits\NETFXSDK"));
+    roots.push(PathBuf::from(
+        r"C:\Program Files (x86)\Windows Kits\NETFXSDK",
+    ));
     let mut found = Vec::new();
     for root in roots {
-        let Ok(entries) = std::fs::read_dir(&root) else { continue };
+        let Ok(entries) = std::fs::read_dir(&root) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let include = entry.path().join("Include").join("um");
             if include.join("metahost.h").is_file() && include.join("mscoree.h").is_file() {
@@ -76,14 +80,24 @@ fn netfx_um_include() -> PathBuf {
         }
     }
     found.sort_by(|left, right| version_key(left).cmp(&version_key(right)));
-    found.pop().unwrap_or_else(|| panic!("metahost.h was not found under the NETFXSDK include directories"))
+    found.pop().unwrap_or_else(|| {
+        panic!("metahost.h was not found under the NETFXSDK include directories")
+    })
 }
 
 fn version_key(include_um: &Path) -> Vec<u32> {
-    let Some(version) = include_um.ancestors().nth(2).and_then(|path| path.file_name()) else {
+    let Some(version) = include_um
+        .ancestors()
+        .nth(2)
+        .and_then(|path| path.file_name())
+    else {
         return Vec::new();
     };
-    version.to_string_lossy().split('.').map(|part| part.parse().unwrap_or(0)).collect()
+    version
+        .to_string_lossy()
+        .split('.')
+        .map(|part| part.parse().unwrap_or(0))
+        .collect()
 }
 
 fn remove_tlb_artifacts(dir: &Path) {
@@ -104,19 +118,33 @@ fn build_hardware_library(out_dir: &Path) {
             let stale = target_dir.join(name);
             if stale.exists() {
                 if let Err(err) = std::fs::remove_file(&stale) {
-                    println!("cargo:warning=could not remove stale {}: {err}", stale.display());
+                    println!(
+                        "cargo:warning=could not remove stale {}: {err}",
+                        stale.display()
+                    );
                 }
             }
         }
     }
-    let project = manifest.join("src").join("hardware_bridge").join("HardwareBridge.csproj");
+    let project = manifest
+        .join("src")
+        .join("hardware_bridge")
+        .join("HardwareBridge.csproj");
     let configuration = if std::env::var("PROFILE").ok().as_deref() == Some("release") {
         "Release"
     } else {
         "Debug"
     };
     let output = Command::new("dotnet")
-        .args(["build", "--nologo", "-v", "q", "-c", configuration, "-p:Platform=x64"])
+        .args([
+            "build",
+            "--nologo",
+            "-v",
+            "q",
+            "-c",
+            configuration,
+            "-p:Platform=x64",
+        ])
         .arg(&project)
         .output();
     let output = match output {
@@ -135,10 +163,17 @@ fn build_hardware_library(out_dir: &Path) {
         .join(configuration)
         .join("TrafficBar.Hardware.dll");
     if !built.is_file() {
-        panic!("TrafficBar.Hardware.dll was not produced at {}", built.display());
+        panic!(
+            "TrafficBar.Hardware.dll was not produced at {}",
+            built.display()
+        );
     }
     let embedded = out_dir.join("TrafficBar.Hardware.dll");
     if let Err(err) = std::fs::copy(&built, &embedded) {
-        panic!("failed to copy {} to {}: {err}", built.display(), embedded.display());
+        panic!(
+            "failed to copy {} to {}: {err}",
+            built.display(),
+            embedded.display()
+        );
     }
 }

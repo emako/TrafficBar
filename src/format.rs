@@ -37,10 +37,18 @@ pub fn speed_to_string(size: u64, cfg: &TaskbarSettings) -> String {
         }
         SpeedUnit::Kbps => {
             if cfg.speed_short_mode {
-                let v = if size < 1024 * 10 { format!("{kb:.1}") } else { format!("{kb:.0}") };
+                let v = if size < 1024 * 10 {
+                    format!("{kb:.1}")
+                } else {
+                    format!("{kb:.0}")
+                };
                 (v, if cfg.hide_unit { "" } else { "K" })
             } else {
-                let v = if size < 1024 * 10 { format!("{kb:.2}") } else { format!("{kb:.1}") };
+                let v = if size < 1024 * 10 {
+                    format!("{kb:.2}")
+                } else {
+                    format!("{kb:.1}")
+                };
                 (v, if cfg.hide_unit { "" } else { "KB" })
             }
         }
@@ -97,7 +105,11 @@ pub fn kbytes_to_string(kb: u64) -> String {
 }
 
 pub fn temperature_to_string(t: f32, cfg: &TaskbarSettings) -> String {
-    let mut s = if t <= 0.0 { "--".to_string() } else { format!("{}", t as i32) };
+    let mut s = if t <= 0.0 {
+        "--".to_string()
+    } else {
+        format!("{}", t as i32)
+    };
     if cfg.separate_value_unit_with_space {
         s.push(' ');
     }
@@ -106,7 +118,11 @@ pub fn temperature_to_string(t: f32, cfg: &TaskbarSettings) -> String {
 }
 
 pub fn usage_to_string(usage: i32, cfg: &TaskbarSettings) -> String {
-    let mut s = if usage < 0 { "--".to_string() } else { usage.to_string() };
+    let mut s = if usage < 0 {
+        "--".to_string()
+    } else {
+        usage.to_string()
+    };
     if !cfg.hide_percent {
         if cfg.separate_value_unit_with_space {
             s.push(' ');
@@ -117,7 +133,11 @@ pub fn usage_to_string(usage: i32, cfg: &TaskbarSettings) -> String {
 }
 
 pub fn freq_to_string(freq: f32, cfg: &TaskbarSettings) -> String {
-    let mut s = if freq < 0.0 { "--".to_string() } else { format!("{freq:.2}") };
+    let mut s = if freq < 0.0 {
+        "--".to_string()
+    } else {
+        format!("{freq:.2}")
+    };
     if cfg.separate_value_unit_with_space {
         s.push(' ');
     }
@@ -143,7 +163,10 @@ pub fn item_value_text(item: DisplayItem, snap: &Snapshot, cfg: &TaskbarSettings
         }
         DisplayItem::Cpu => usage_to_string(snap.cpu_usage, cfg),
         DisplayItem::Memory => match cfg.memory_display {
-            MemoryDisplay::MemoryUsed => data_size_to_string(snap.used_memory_kb * 1024, cfg.separate_value_unit_with_space),
+            MemoryDisplay::MemoryUsed => data_size_to_string(
+                snap.used_memory_kb * 1024,
+                cfg.separate_value_unit_with_space,
+            ),
             MemoryDisplay::MemoryAvailable => data_size_to_string(
                 snap.total_memory_kb.saturating_sub(snap.used_memory_kb) * 1024,
                 cfg.separate_value_unit_with_space,
@@ -157,7 +180,9 @@ pub fn item_value_text(item: DisplayItem, snap: &Snapshot, cfg: &TaskbarSettings
         DisplayItem::HddTemp => temperature_to_string(snap.hdd_temperature, cfg),
         DisplayItem::MainBoardTemp => temperature_to_string(snap.main_board_temperature, cfg),
         DisplayItem::CpuFreq => freq_to_string(snap.cpu_freq, cfg),
-        DisplayItem::TodayTraffic => kbytes_to_string((snap.today_up_traffic + snap.today_down_traffic) / 1024),
+        DisplayItem::TodayTraffic => {
+            kbytes_to_string((snap.today_up_traffic + snap.today_down_traffic) / 1024)
+        }
     }
 }
 
@@ -168,7 +193,11 @@ pub fn item_sample_text(item: DisplayItem, snap: &Snapshot, cfg: &TaskbarSetting
             let digits = "8".repeat(cfg.digits_number.max(1) as usize);
             let hide_unit = cfg.hide_unit && cfg.speed_unit != SpeedUnit::Auto;
             let mut s = if cfg.speed_short_mode {
-                if hide_unit { format!("{digits}.") } else { format!("{digits}.M/s") }
+                if hide_unit {
+                    format!("{digits}.")
+                } else {
+                    format!("{digits}.M/s")
+                }
             } else if hide_unit {
                 format!("{digits}.8")
             } else {
@@ -185,23 +214,48 @@ pub fn item_sample_text(item: DisplayItem, snap: &Snapshot, cfg: &TaskbarSetting
         DisplayItem::Cpu | DisplayItem::Memory | DisplayItem::GpuUsage | DisplayItem::HddUsage => {
             let mut s = "100".to_string();
             if !cfg.hide_percent {
-                s.push_str(if cfg.separate_value_unit_with_space { " %" } else { "%" });
+                s.push_str(if cfg.separate_value_unit_with_space {
+                    " %"
+                } else {
+                    "%"
+                });
             }
             if item == DisplayItem::Memory
-                && matches!(cfg.memory_display, MemoryDisplay::MemoryUsed | MemoryDisplay::MemoryAvailable)
+                && matches!(
+                    cfg.memory_display,
+                    MemoryDisplay::MemoryUsed | MemoryDisplay::MemoryAvailable
+                )
             {
-                s = data_size_to_string(snap.total_memory_kb * 1024, cfg.separate_value_unit_with_space);
+                s = data_size_to_string(
+                    snap.total_memory_kb * 1024,
+                    cfg.separate_value_unit_with_space,
+                );
             }
             s
         }
-        DisplayItem::CpuTemp | DisplayItem::GpuTemp | DisplayItem::HddTemp | DisplayItem::MainBoardTemp => {
-            if cfg.separate_value_unit_with_space { "99 °C".into() } else { "99°C".into() }
+        DisplayItem::CpuTemp
+        | DisplayItem::GpuTemp
+        | DisplayItem::HddTemp
+        | DisplayItem::MainBoardTemp => {
+            if cfg.separate_value_unit_with_space {
+                "99 °C".into()
+            } else {
+                "99°C".into()
+            }
         }
         DisplayItem::CpuFreq => {
-            if cfg.separate_value_unit_with_space { "1.00 GHz".into() } else { "1.00GHz".into() }
+            if cfg.separate_value_unit_with_space {
+                "1.00 GHz".into()
+            } else {
+                "1.00GHz".into()
+            }
         }
         DisplayItem::TodayTraffic => {
-            if cfg.separate_value_unit_with_space { "999.99 MB".into() } else { "999.99MB".into() }
+            if cfg.separate_value_unit_with_space {
+                "999.99 MB".into()
+            } else {
+                "999.99MB".into()
+            }
         }
     }
 }

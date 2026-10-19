@@ -13,7 +13,8 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Controls::{WM_MOUSEHOVER, WM_MOUSELEAVE};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyState, TrackMouseEvent, TME_HOVER, TME_LEAVE, TRACKMOUSEEVENT, VK_CONTROL, VK_MENU, VK_SHIFT,
+    GetKeyState, TME_HOVER, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent, VK_CONTROL, VK_MENU,
+    VK_SHIFT,
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{BOOL, PCWSTR, w};
@@ -110,7 +111,11 @@ pub fn hwnd() -> Option<HWND> {
 }
 
 pub fn is_open() -> bool {
-    TASKBAR.with(|t| t.try_borrow().map(|t| t.as_ref().map(|t| !t.destroyed).unwrap_or(false)).unwrap_or(true))
+    TASKBAR.with(|t| {
+        t.try_borrow()
+            .map(|t| t.as_ref().map(|t| !t.destroyed).unwrap_or(false))
+            .unwrap_or(true)
+    })
 }
 
 fn register_class() {
@@ -144,7 +149,12 @@ fn find_child(parent: HWND, class: PCWSTR) -> HWND {
 pub fn is_windows11_taskbar() -> bool {
     unsafe {
         let tray = FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null()).unwrap_or_default();
-        !tray.is_invalid() && !find_child(tray, w!("Windows.UI.Composition.DesktopWindowContentBridge")).is_invalid()
+        !tray.is_invalid()
+            && !find_child(
+                tray,
+                w!("Windows.UI.Composition.DesktopWindowContentBridge"),
+            )
+            .is_invalid()
     }
 }
 
@@ -161,7 +171,12 @@ pub fn secondary_taskbars() -> Vec<HWND> {
         }
         true.into()
     }
-    unsafe extern "system" fn enum_mon(_m: HMONITOR, _hdc: HDC, rect: *mut RECT, lparam: LPARAM) -> BOOL {
+    unsafe extern "system" fn enum_mon(
+        _m: HMONITOR,
+        _hdc: HDC,
+        rect: *mut RECT,
+        lparam: LPARAM,
+    ) -> BOOL {
         let v = unsafe { &mut *(lparam.0 as *mut Vec<RECT>) };
         v.push(unsafe { *rect });
         true.into()
@@ -170,11 +185,18 @@ pub fn secondary_taskbars() -> Vec<HWND> {
     let mut mons: Vec<RECT> = Vec::new();
     unsafe {
         let _ = EnumWindows(Some(enum_wnd), LPARAM(&mut bars as *mut _ as isize));
-        let _ = EnumDisplayMonitors(None, None, Some(enum_mon), LPARAM(&mut mons as *mut _ as isize));
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(enum_mon),
+            LPARAM(&mut mons as *mut _ as isize),
+        );
     }
     let monitor_index = |r: &RECT| {
         mons.iter()
-            .position(|m| r.left >= m.left && r.top >= m.top && r.left < m.right && r.top < m.bottom)
+            .position(|m| {
+                r.left >= m.left && r.top >= m.top && r.left < m.right && r.top < m.bottom
+            })
             .unwrap_or(usize::MAX)
     };
     bars.sort_by(|a, b| {
@@ -187,13 +209,23 @@ pub fn secondary_taskbars() -> Vec<HWND> {
 }
 
 pub fn display_count() -> usize {
-    unsafe extern "system" fn enum_mon(_m: HMONITOR, _hdc: HDC, _rect: *mut RECT, lparam: LPARAM) -> BOOL {
+    unsafe extern "system" fn enum_mon(
+        _m: HMONITOR,
+        _hdc: HDC,
+        _rect: *mut RECT,
+        lparam: LPARAM,
+    ) -> BOOL {
         unsafe { *(lparam.0 as *mut usize) += 1 };
         true.into()
     }
     let mut n = 0usize;
     unsafe {
-        let _ = EnumDisplayMonitors(None, None, Some(enum_mon), LPARAM(&mut n as *mut _ as isize));
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(enum_mon),
+            LPARAM(&mut n as *mut _ as isize),
+        );
     }
     n
 }
@@ -207,7 +239,12 @@ fn find_taskbar(s: &state::AppState) -> (HWND, bool) {
             return (bars[idx], true);
         }
     }
-    unsafe { (FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null()).unwrap_or_default(), false) }
+    unsafe {
+        (
+            FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null()).unwrap_or_default(),
+            false,
+        )
+    }
 }
 
 fn window_rect(h: HWND) -> RECT {
@@ -232,7 +269,8 @@ pub fn open(mode: RenderMode) {
     let Some((h_taskbar, is_secondary)) = state::try_with(find_taskbar) else {
         return;
     };
-    let win11 = !is_secondary && is_windows11_taskbar() || is_secondary && crate::win::windows_version().is_windows11_or_later();
+    let win11 = !is_secondary && is_windows11_taskbar()
+        || is_secondary && crate::win::windows_version().is_windows11_or_later();
     let ex_style = match mode {
         RenderMode::Layered => WS_EX_TOOLWINDOW | WS_EX_LAYERED,
         RenderMode::Composition => WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP,
@@ -332,7 +370,11 @@ pub fn close() {
 
 impl TaskbarWnd {
     fn parent(&self) -> HWND {
-        if self.win11 { self.h_taskbar } else { self.h_bar }
+        if self.win11 {
+            self.h_taskbar
+        } else {
+            self.h_bar
+        }
     }
 
     fn dpi_px(&self, px: i32) -> i32 {
@@ -391,7 +433,14 @@ impl TaskbarWnd {
 
     fn move_window(&self) {
         unsafe {
-            let _ = MoveWindow(self.hwnd, self.rect.left, self.rect.top, self.rect.width(), self.rect.height(), true);
+            let _ = MoveWindow(
+                self.hwnd,
+                self.rect.left,
+                self.rect.top,
+                self.rect.width(),
+                self.rect.height(),
+                true,
+            );
         }
     }
 
@@ -481,7 +530,15 @@ impl TaskbarWnd {
             unsafe {
                 let _ = MoveWindow(self.hwnd, r.left, r.top, r.width(), r.height(), true);
                 if GetForegroundWindow() == self.h_taskbar {
-                    let _ = SetWindowPos(self.hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+                    let _ = SetWindowPos(
+                        self.hwnd,
+                        Some(HWND_TOPMOST),
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE,
+                    );
                 }
             }
         }
@@ -502,10 +559,24 @@ impl TaskbarWnd {
                     self.left_space = rc_min.left - rc_bar.left;
                     self.last_width = rw(&rc_min) - w;
                     if !tb.tbar_wnd_on_left {
-                        let _ = MoveWindow(self.h_min, self.left_space, 0, rw(&rc_min) - w, rh(&rc_min), true);
+                        let _ = MoveWindow(
+                            self.h_min,
+                            self.left_space,
+                            0,
+                            rw(&rc_min) - w,
+                            rh(&rc_min),
+                            true,
+                        );
                         self.move_to_x(self.left_space + rw(&rc_min) - w + 2);
                     } else {
-                        let _ = MoveWindow(self.h_min, self.left_space + w, 0, rw(&rc_min) - w, rh(&rc_min), true);
+                        let _ = MoveWindow(
+                            self.h_min,
+                            self.left_space + w,
+                            0,
+                            rw(&rc_min) - w,
+                            rh(&rc_min),
+                            true,
+                        );
                         self.move_to_x(self.left_space);
                     }
                     self.move_to_y((rh(&rc_bar) - h) / 2);
@@ -519,10 +590,24 @@ impl TaskbarWnd {
                 self.top_space = rc_min.top - rc_bar.top;
                 self.last_height = rh(&rc_min) - h;
                 if !tb.tbar_wnd_on_left {
-                    let _ = MoveWindow(self.h_min, 0, self.top_space, rw(&rc_min), rh(&rc_min) - h, true);
+                    let _ = MoveWindow(
+                        self.h_min,
+                        0,
+                        self.top_space,
+                        rw(&rc_min),
+                        rh(&rc_min) - h,
+                        true,
+                    );
                     self.move_to_y(self.top_space + rh(&rc_min) - h + 2);
                 } else {
-                    let _ = MoveWindow(self.h_min, 0, self.top_space + h, rw(&rc_min), rh(&rc_min) - h, true);
+                    let _ = MoveWindow(
+                        self.h_min,
+                        0,
+                        self.top_space + h,
+                        rw(&rc_min),
+                        rh(&rc_min) - h,
+                        true,
+                    );
                     self.move_to_y(self.top_space);
                 }
                 self.move_to_x((rw(&rc_min) - w) / 2);
@@ -545,7 +630,10 @@ impl TaskbarWnd {
         rc_start.bottom = rc_start.top + start_h;
         self.rect.right = self.rect.left + self.layout.width;
         self.rect.bottom = self.rect.top + self.layout.height;
-        if !(force || rw(&rc_notify) != self.last_notify_width || rc_start.left != self.last_start_pos) {
+        if !(force
+            || rw(&rc_notify) != self.last_notify_width
+            || rc_start.left != self.last_start_pos)
+        {
             return;
         }
         self.last_notify_width = rw(&rc_notify);
@@ -575,7 +663,9 @@ impl TaskbarWnd {
             self.move_to_x(2);
         }
         self.move_to_x(self.rect.left + self.dpi_px(tb.window_offset_left));
-        let y = (start_h - self.rect.height()) / 2 + (rh(&self.rc_taskbar) - start_h) + self.dpi_px(tb.window_offset_top);
+        let y = (start_h - self.rect.height()) / 2
+            + (rh(&self.rc_taskbar) - start_h)
+            + self.dpi_px(tb.window_offset_top);
         let y = if self.h_start.is_invalid() {
             (rh(&self.rc_taskbar) - self.rect.height()) / 2 + self.dpi_px(tb.window_offset_top)
         } else {
@@ -639,9 +729,16 @@ impl TaskbarWnd {
                 } else {
                     Some(s.settings.taskbar.back_color)
                 };
-                self.renderer.render(dev, font, size, background, s.settings.taskbar.enable_colorful_emoji, |frame| {
-                    layout::draw(frame, &layout, &ctx, &mut graphs);
-                })
+                self.renderer.render(
+                    dev,
+                    font,
+                    size,
+                    background,
+                    s.settings.taskbar.enable_colorful_emoji,
+                    |frame| {
+                        layout::draw(frame, &layout, &ctx, &mut graphs);
+                    },
+                )
             }) else {
                 return Ok(());
             };
@@ -665,7 +762,10 @@ impl TaskbarWnd {
             self.destroyed = true;
             return;
         }
-        if code == D2DERR_RECREATE_TARGET || code == DXGI_ERROR_DEVICE_REMOVED || code == DXGI_ERROR_DEVICE_RESET {
+        if code == D2DERR_RECREATE_TARGET
+            || code == DXGI_ERROR_DEVICE_REMOVED
+            || code == DXGI_ERROR_DEVICE_RESET
+        {
             log::warn!("D2D device lost ({code:#x}), recreating");
             self.renderer = Renderer::new(self.hwnd, self.renderer.mode);
             reset_devices();
@@ -684,9 +784,16 @@ impl TaskbarWnd {
 }
 
 fn plugin_mouse(key: &Option<ItemKey>, ev: MouseEvent, x: i32, y: i32, hwnd: HWND) -> bool {
-    let Some(ItemKey::Plugin(id)) = key else { return false };
-    state::try_with(|s| s.plugins.item(id).map(|i| s.plugins.mouse_event(i, ev, x, y, hwnd.0 as isize)).unwrap_or(false))
-        .unwrap_or(false)
+    let Some(ItemKey::Plugin(id)) = key else {
+        return false;
+    };
+    state::try_with(|s| {
+        s.plugins
+            .item(id)
+            .map(|i| s.plugins.mouse_event(i, ev, x, y, hwnd.0 as isize))
+            .unwrap_or(false)
+    })
+    .unwrap_or(false)
 }
 
 fn lparam_point(lparam: LPARAM) -> (i32, i32) {
@@ -755,7 +862,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             if !plugin_mouse(&key, MouseEvent::RClicked, x, y, hwnd) {
                 with(|t| t.menu_popped = true);
                 let plugin = match &key {
-                    Some(ItemKey::Plugin(id)) => state::try_with(|s| s.plugins.plugin_of(id)).flatten(),
+                    Some(ItemKey::Plugin(id)) => {
+                        state::try_with(|s| s.plugins.plugin_of(id)).flatten()
+                    }
                     _ => None,
                 };
                 crate::tray::menu::show_context_menu(hwnd, plugin);
@@ -772,7 +881,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     let _ = ScreenToClient(hwnd, &mut pt);
                 }
                 let key = with(|t| t.hit_item(pt.x, pt.y)).flatten();
-                let ev = if delta > 0 { MouseEvent::WheelUp } else { MouseEvent::WheelDown };
+                let ev = if delta > 0 {
+                    MouseEvent::WheelUp
+                } else {
+                    MouseEvent::WheelDown
+                };
                 if plugin_mouse(&key, ev, pt.x, pt.y, hwnd) {
                     return LRESULT(0);
                 }
@@ -797,7 +910,16 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 let handled = state::try_with(|s| {
                     s.plugins
                         .item(&id)
-                        .map(|i| s.plugins.key_event(i, wparam.0 as i32, ctrl, shift, alt, hwnd.0 as isize))
+                        .map(|i| {
+                            s.plugins.key_event(
+                                i,
+                                wparam.0 as i32,
+                                ctrl,
+                                shift,
+                                alt,
+                                hwnd.0 as isize,
+                            )
+                        })
                         .unwrap_or(false)
                 })
                 .unwrap_or(false);

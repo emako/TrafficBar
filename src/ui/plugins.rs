@@ -1,14 +1,14 @@
-﻿//! Plugin manager (`CPluginManagerDlg`) and plugin details (`CPluginInfoDlg`).
+//! Plugin manager (`CPluginManagerDlg`) and plugin details (`CPluginInfoDlg`).
 
 use gpui::{
-    App, Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement, Styled, Window,
-    div, prelude::FluentBuilder, px, size,
+    App, Context, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px, size,
 };
 use gpui_component::link::Link;
 use gpui_component::{ActiveTheme, h_flex, scroll::ScrollableElement, v_flex};
 
-use super::common::{button, footer, kv_row, muted};
 use super::Slot;
+use super::common::{button, footer, kv_row, muted};
 use crate::i18n::{tr, tr_plain};
 use crate::plugin::PluginState;
 use crate::state;
@@ -16,8 +16,12 @@ use crate::state;
 fn status_text(p: &crate::plugin::PluginInfo) -> String {
     match p.state {
         PluginState::Succeed => tr("IDS_PLUGIN_LOAD_SUCCEED"),
-        PluginState::ModuleLoadFailed => tr("IDS_PLUGIN_MODULE_LOAD_FAILED").replace("<%1%>", &p.error_code.to_string()),
-        PluginState::FunctionGetFailed => tr("IDS_PLUGIN_FUNCTION_GET_FAILED").replace("<%1%>", &p.error_code.to_string()),
+        PluginState::ModuleLoadFailed => {
+            tr("IDS_PLUGIN_MODULE_LOAD_FAILED").replace("<%1%>", &p.error_code.to_string())
+        }
+        PluginState::FunctionGetFailed => {
+            tr("IDS_PLUGIN_FUNCTION_GET_FAILED").replace("<%1%>", &p.error_code.to_string())
+        }
         PluginState::VersionNotSupport => tr("IDS_PLUGIN_VERSION_NOT_SUPPORT"),
         PluginState::Disabled => tr("IDS_DISABLED"),
     }
@@ -29,7 +33,12 @@ pub struct PluginManagerView {
 
 impl Render for PluginManagerView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (plugins, disabled) = state::with(|s| (s.plugins.plugins.clone(), s.settings.cfg.plugin_disabled.clone()));
+        let (plugins, disabled) = state::with(|s| {
+            (
+                s.plugins.plugins.clone(),
+                s.settings.cfg.plugin_disabled.clone(),
+            )
+        });
         let me = cx.entity().downgrade();
         let selected = self.selected.filter(|i| *i < plugins.len());
         let sel_plugin = selected.and_then(|i| plugins.get(i).cloned());
@@ -47,7 +56,9 @@ impl Render for PluginManagerView {
         let rows = plugins.iter().enumerate().map(|(i, p)| {
             let me = me.clone();
             let is_sel = selected == Some(i);
-            let pending_disable = disabled.iter().any(|d| d.eq_ignore_ascii_case(&p.file_name));
+            let pending_disable = disabled
+                .iter()
+                .any(|d| d.eq_ignore_ascii_case(&p.file_name));
             h_flex()
                 .id(gpui::ElementId::Name(format!("plugin-row-{i}").into()))
                 .px_2()
@@ -65,18 +76,27 @@ impl Render for PluginManagerView {
                 .child(div().w(px(160.)).child(p.file_name.clone()))
                 .child(div().w(px(160.)).child(p.props[0].clone()))
                 .child(div().w(px(80.)).child(p.props[4].clone()))
-                .child(div().flex_1().child(if pending_disable && p.state != PluginState::Disabled {
-                    format!("{} ({})", status_text(p), tr("IDS_DISABLED"))
-                } else {
-                    status_text(p)
-                }))
+                .child(div().flex_1().child(
+                    if pending_disable && p.state != PluginState::Disabled {
+                        format!("{} ({})", status_text(p), tr("IDS_DISABLED"))
+                    } else {
+                        status_text(p)
+                    },
+                ))
         });
         let loaded = sel_plugin.as_ref().map(|p| p.is_loaded()).unwrap_or(false);
         let sel_disabled = sel_plugin
             .as_ref()
-            .map(|p| disabled.iter().any(|d| d.eq_ignore_ascii_case(&p.file_name)))
+            .map(|p| {
+                disabled
+                    .iter()
+                    .any(|d| d.eq_ignore_ascii_case(&p.file_name))
+            })
             .unwrap_or(false);
-        let file_name = sel_plugin.as_ref().map(|p| p.file_name.clone()).unwrap_or_default();
+        let file_name = sel_plugin
+            .as_ref()
+            .map(|p| p.file_name.clone())
+            .unwrap_or_default();
         let plugin_dir = crate::win::program_dir().join("plugins");
         let hwnd = state::with(|s| s.main_hwnd);
         v_flex()
@@ -160,9 +180,14 @@ impl Render for PluginManagerView {
 }
 
 pub fn open_manager(cx: &mut App) {
-    super::open_window(Slot::PluginManager, tr("TXT_TITLE_PLUGIN_MANAGE"), size(px(640.), px(440.)), true, cx, |_, _| {
-        PluginManagerView { selected: None }
-    });
+    super::open_window(
+        Slot::PluginManager,
+        tr("TXT_TITLE_PLUGIN_MANAGE"),
+        size(px(640.), px(440.)),
+        true,
+        cx,
+        |_, _| PluginManagerView { selected: None },
+    );
 }
 
 pub struct PluginInfoView {
@@ -173,7 +198,13 @@ impl Render for PluginInfoView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let info = state::with(|s| {
             let p = s.plugins.plugins.get(self.index)?.clone();
-            let names: Vec<String> = s.plugins.items.iter().filter(|i| p.item_ids.contains(&i.id)).map(|i| i.name.clone()).collect();
+            let names: Vec<String> = s
+                .plugins
+                .items
+                .iter()
+                .filter(|i| p.item_ids.contains(&i.id))
+                .map(|i| i.name.clone())
+                .collect();
             Some((p, names))
         });
         let rows: Vec<(String, String)> = match info {
@@ -181,7 +212,10 @@ impl Render for PluginInfoView {
                 (tr("IDS_NAME"), p.props[0].clone()),
                 (tr("IDS_DESCRIPTION"), p.props[1].clone()),
                 (tr("IDS_FILE_NAME"), p.file_name.clone()),
-                (tr("IDS_FILE_PATH"), p.file_path.to_string_lossy().into_owned()),
+                (
+                    tr("IDS_FILE_PATH"),
+                    p.file_path.to_string_lossy().into_owned(),
+                ),
                 (tr("IDS_ITEM_NUM"), p.item_ids.len().to_string()),
                 (tr("IDS_ITEM_NAMES"), names.join("; ")),
                 (tr("IDS_DISP_ITEM_ID"), p.item_ids.join("; ")),
@@ -202,15 +236,32 @@ impl Render for PluginInfoView {
                     .min_h_0()
                     .p_3()
                     .overflow_y_scrollbar()
-                    .children(rows.into_iter().enumerate().map(|(i, (k, v))| kv_row(k, v, i % 2 == 1, cx))),
+                    .children(
+                        rows.into_iter()
+                            .enumerate()
+                            .map(|(i, (k, v))| kv_row(k, v, i % 2 == 1, cx)),
+                    ),
             )
-            .child(footer(vec![button("plugin-info-close", tr("TXT_CLOSE"), false, |w, _| w.remove_window())], cx))
+            .child(footer(
+                vec![button(
+                    "plugin-info-close",
+                    tr("TXT_CLOSE"),
+                    false,
+                    |w, _| w.remove_window(),
+                )],
+                cx,
+            ))
     }
 }
 
 pub fn open_info(index: usize, cx: &mut App) {
     super::close(Slot::PluginInfo, cx);
-    super::open_window(Slot::PluginInfo, tr("IDS_PLUGIN_INFO"), size(px(560.), px(460.)), true, cx, move |_, _| {
-        PluginInfoView { index }
-    });
+    super::open_window(
+        Slot::PluginInfo,
+        tr("IDS_PLUGIN_INFO"),
+        size(px(560.), px(460.)),
+        true,
+        cx,
+        move |_, _| PluginInfoView { index },
+    );
 }

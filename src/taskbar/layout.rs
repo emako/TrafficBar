@@ -5,7 +5,7 @@ use std::collections::{HashMap, VecDeque};
 
 use super::render::{Align, Devices, Font, Frame, Rect};
 use crate::config::{Runtime, TaskbarSettings};
-use crate::display_item::{all_items, DisplayItem, ItemKey};
+use crate::display_item::{DisplayItem, ItemKey, all_items};
 use crate::format;
 use crate::monitor::Snapshot;
 use crate::plugin::PluginHost;
@@ -111,7 +111,9 @@ impl Context<'_> {
     fn is_displayed(&self, key: &ItemKey) -> bool {
         match key {
             ItemKey::Builtin(_) => self.settings.is_item_displayed(key),
-            ItemKey::Plugin(id) => self.settings.is_item_displayed(key) && self.plugins.item(id).is_some(),
+            ItemKey::Plugin(id) => {
+                self.settings.is_item_displayed(key) && self.plugins.item(id).is_some()
+            }
         }
     }
 }
@@ -130,7 +132,11 @@ pub fn calculate(dev: &Devices, font: &Font, ctx: &Context) -> Layout {
             let label_width = font.text_width(dev, &s.label(&key));
             let value_width = font.text_width(dev, &ctx.sample_text(&key));
             let double_line_exclusive = match &key {
-                ItemKey::Plugin(id) => ctx.plugins.item(id).map(|i| ctx.plugins.is_double_line(i)).unwrap_or(false),
+                ItemKey::Plugin(id) => ctx
+                    .plugins
+                    .item(id)
+                    .map(|i| ctx.plugins.is_double_line(i))
+                    .unwrap_or(false),
                 _ => false,
             };
             ItemLayout {
@@ -161,7 +167,11 @@ pub fn calculate(dev: &Devices, font: &Font, ctx: &Context) -> Layout {
     let height;
 
     if ctx.on_top_or_bottom {
-        height = if !horizontal_arrange { wnd_h } else { wnd_h * 2 / 3 };
+        height = if !horizontal_arrange {
+            wnd_h
+        } else {
+            wnd_h * 2 / 3
+        };
         if s.horizontal_arrange {
             width = 0;
             let mut x = 0;
@@ -199,13 +209,15 @@ pub fn calculate(dev: &Devices, font: &Font, ctx: &Context) -> Layout {
                         None => {
                             width0 = items[i].total();
                             max_width0 = items[i].max();
-                            items[i].rect = Rect::new(current_x, y_up, current_x + width0, y_up + item_height);
+                            items[i].rect =
+                                Rect::new(current_x, y_up, current_x + width0, y_up + item_height);
                             first = Some(i);
                         }
                         Some(f) => {
                             let col = width0.max(items[i].total());
                             items[f].rect.right = current_x + col;
-                            items[i].rect = Rect::new(current_x, y_down, current_x + col, y_down + item_height);
+                            items[i].rect =
+                                Rect::new(current_x, y_down, current_x + col, y_down + item_height);
                             current_x += col + item_space;
                             first = None;
                         }
@@ -223,7 +235,11 @@ pub fn calculate(dev: &Devices, font: &Font, ctx: &Context) -> Layout {
         width = items.iter().map(|i| i.total()).max().unwrap_or(0);
         let mut h = 0;
         for it in items.iter_mut() {
-            let item_height = if it.double_line_exclusive { wnd_h } else { wnd_h / 2 };
+            let item_height = if it.double_line_exclusive {
+                wnd_h
+            } else {
+                wnd_h / 2
+            };
             let item_width = width.min(ctx.taskbar_width - ctx.dpi(2));
             it.rect = Rect::new(0, h, item_width, h + item_height);
             h += item_height + item_space;
@@ -293,7 +309,13 @@ fn draw_status_bar(frame: &Frame, r: Rect, percent: i32, graph_color: u32, dashe
     frame.fill_rect(fill, graph_color, 255);
 }
 
-fn draw_graph(frame: &Frame, r: Rect, list: Option<&VecDeque<i32>>, graph_color: u32, dashed_box: bool) {
+fn draw_graph(
+    frame: &Frame,
+    r: Rect,
+    list: Option<&VecDeque<i32>>,
+    graph_color: u32,
+    dashed_box: bool,
+) {
     if dashed_box {
         frame.outline(r, graph_color, true);
     }
@@ -306,7 +328,12 @@ fn draw_graph(frame: &Frame, r: Rect, list: Option<&VecDeque<i32>>, graph_color:
             break;
         }
         let v = (*v).clamp(0, 100);
-        frame.vline(r.right - i as i32, r.bottom, v * r.height() / 100, graph_color);
+        frame.vline(
+            r.right - i as i32,
+            r.bottom,
+            v * r.height() / 100,
+            graph_color,
+        );
     }
 }
 
@@ -344,11 +371,21 @@ pub fn draw(frame: &Frame, layout: &Layout, ctx: &Context, graphs: &mut GraphHis
                     DisplayItem::HddUsage => Some(snap.hdd_usage),
                     DisplayItem::Up => Some(netspeed_percent(snap.out_speed, s)),
                     DisplayItem::Down => Some(netspeed_percent(snap.in_speed, s)),
-                    DisplayItem::TotalSpeed => Some(netspeed_percent(snap.in_speed + snap.out_speed, s)),
+                    DisplayItem::TotalSpeed => {
+                        Some(netspeed_percent(snap.in_speed + snap.out_speed, s))
+                    }
                     DisplayItem::CpuFreq | DisplayItem::TodayTraffic => None,
                 };
-                let enabled = if d.is_net_speed() { s.show_netspeed_figure } else { s.show_status_bar };
-                if enabled && !ctx.admin_blocked(*d) { v } else { None }
+                let enabled = if d.is_net_speed() {
+                    s.show_netspeed_figure
+                } else {
+                    s.show_status_bar
+                };
+                if enabled && !ctx.admin_blocked(*d) {
+                    v
+                } else {
+                    None
+                }
             }
             ItemKey::Plugin(id) => {
                 if s.show_status_bar {
@@ -364,14 +401,21 @@ pub fn draw(frame: &Frame, layout: &Layout, ctx: &Context, graphs: &mut GraphHis
         if let Some(value) = figure {
             if s.cm_graph_type {
                 graphs.add(&it.key, value, rect.width().max(1) as usize);
-                draw_graph(frame, rect, graphs.get(&it.key), graph_color, s.show_graph_dashed_box);
+                draw_graph(
+                    frame,
+                    rect,
+                    graphs.get(&it.key),
+                    graph_color,
+                    s.show_graph_dashed_box,
+                );
             } else {
                 draw_status_bar(frame, rect, value, graph_color, s.show_graph_dashed_box);
             }
         }
 
         if let ItemKey::Plugin(id) = &it.key {
-            ctx.plugins.notify_draw_colors(id, colors.label, colors.value);
+            ctx.plugins
+                .notify_draw_colors(id, colors.label, colors.value);
         }
 
         if it.label_width > 0 {

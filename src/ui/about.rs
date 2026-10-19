@@ -1,11 +1,11 @@
-﻿//! About (`CAboutDlg`).
+//! About (`CAboutDlg`).
 
 use gpui::{App, Context, IntoElement, ParentElement, Render, Styled, Window, div, px, size};
 use gpui_component::link::Link;
 use gpui_component::{ActiveTheme, v_flex};
 
-use super::common::{button, footer, muted};
 use super::Slot;
+use super::common::{button, footer, muted};
 use crate::i18n::tr;
 
 pub struct AboutView;
@@ -39,27 +39,63 @@ impl Render for AboutView {
                             v.major,
                             v.minor,
                             v.build,
-                            if elevated { format!(" ({})", "Administrator") } else { String::new() }
+                            if elevated {
+                                format!(" ({})", "Administrator")
+                            } else {
+                                String::new()
+                            }
                         ),
                         cx,
                     ))
                     .child(div().h(px(8.)))
                     .child(div().text_sm().child(tr("TXT_ABOUT_THIRD_PARTY_LIB")))
-                    .child(link("lib-gpui", "GPUI".into(), "https://github.com/zed-industries/zed/tree/main/crates/gpui"))
-                    .child(link("lib-gpui-component", "gpui-component".into(), "https://github.com/longbridge/gpui-component"))
-                    .child(link("lib-lhm", "LibreHardwareMonitor".into(), "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor"))
+                    .child(link(
+                        "lib-gpui",
+                        "GPUI".into(),
+                        "https://github.com/zed-industries/zed/tree/main/crates/gpui",
+                    ))
+                    .child(link(
+                        "lib-gpui-component",
+                        "gpui-component".into(),
+                        "https://github.com/longbridge/gpui-component",
+                    ))
+                    .child(link(
+                        "lib-lhm",
+                        "LibreHardwareMonitor".into(),
+                        "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor",
+                    ))
                     .child(div().h(px(8.)))
-                    .child(link("about-github", tr("BAR_SOURCE_CODE"), "https://github.com/zhongyang219/TrafficMonitor"))
-                    .child(link("about-license", tr("TXT_ABOUT_LICENSE"), "https://github.com/zhongyang219/TrafficMonitor/blob/master/LICENSE"))
+                    .child(link(
+                        "about-github",
+                        tr("BAR_SOURCE_CODE"),
+                        "https://github.com/zhongyang219/TrafficMonitor",
+                    ))
+                    .child(link(
+                        "about-license",
+                        tr("TXT_ABOUT_LICENSE"),
+                        "https://github.com/zhongyang219/TrafficMonitor/blob/master/LICENSE",
+                    ))
                     .child(div().h(px(8.)))
                     .child(muted(tr("BAR_PLUGIN_TEXT_ONLY"), cx))
                     .text_color(cx.theme().foreground),
             )
-            .child(footer(vec![button("about-close", tr("TXT_CLOSE"), false, |w, _| w.remove_window())], cx))
+            .child(footer(
+                vec![button("about-close", tr("TXT_CLOSE"), false, |w, _| {
+                    w.remove_window()
+                })],
+                cx,
+            ))
     }
 }
 
 pub fn open(cx: &mut App) {
     let title = tr("TXT_TITLE_ABOUT").replace("TrafficMonitor", "TrafficBar");
-    super::open_window(Slot::About, title, size(px(480.), px(480.)), false, cx, |_, _| AboutView);
+    super::open_window(
+        Slot::About,
+        title,
+        size(px(480.), px(480.)),
+        false,
+        cx,
+        |_, _| AboutView,
+    );
 }

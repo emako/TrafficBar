@@ -6,9 +6,10 @@ use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 
 use gpui::{
-    AnyElement, AnyView, App, AppContext, Context, Entity, Focusable, Hsla, Image, ImageFormat, InteractiveElement,
-    IntoElement, ParentElement, Render, Rgba, SharedString, StatefulInteractiveElement, Styled, Subscription, WeakEntity,
-    Window, WindowControlArea, div, img, prelude::FluentBuilder, px, relative, rems, rgb,
+    AnyElement, AnyView, App, AppContext, Context, Entity, Focusable, Hsla, Image, ImageFormat,
+    InteractiveElement, IntoElement, ParentElement, Render, Rgba, SharedString,
+    StatefulInteractiveElement, Styled, Subscription, WeakEntity, Window, WindowControlArea, div,
+    img, prelude::FluentBuilder, px, relative, rems, rgb,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::checkbox::Checkbox;
@@ -26,14 +27,21 @@ fn icon_image(dark: bool) -> Arc<Image> {
     static LIGHT: OnceLock<Arc<Image>> = OnceLock::new();
     if dark {
         DARK.get_or_init(|| {
-            Arc::new(Image::from_bytes(ImageFormat::Png, include_bytes!("../assets/icons/notify_dark.png").to_vec()))
+            Arc::new(Image::from_bytes(
+                ImageFormat::Png,
+                include_bytes!("../assets/icons/notify_dark.png").to_vec(),
+            ))
         })
         .clone()
     } else {
-        LIGHT.get_or_init(|| {
-            Arc::new(Image::from_bytes(ImageFormat::Png, include_bytes!("../assets/icons/notify_light.png").to_vec()))
-        })
-        .clone()
+        LIGHT
+            .get_or_init(|| {
+                Arc::new(Image::from_bytes(
+                    ImageFormat::Png,
+                    include_bytes!("../assets/icons/notify_light.png").to_vec(),
+                ))
+            })
+            .clone()
     }
 }
 
@@ -121,7 +129,12 @@ pub fn group(title: impl Into<SharedString>, cx: &App) -> gpui::Div {
         .border_1()
         .border_color(cx.theme().border)
         .rounded(cx.theme().radius)
-        .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child(title))
+        .child(
+            div()
+                .text_sm()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .child(title),
+        )
 }
 
 pub fn row() -> gpui::Div {
@@ -133,7 +146,10 @@ pub fn label(text: impl Into<SharedString>) -> gpui::Div {
 }
 
 pub fn muted(text: impl Into<SharedString>, cx: &App) -> gpui::Div {
-    div().text_xs().text_color(cx.theme().muted_foreground).child(text.into())
+    div()
+        .text_xs()
+        .text_color(cx.theme().muted_foreground)
+        .child(text.into())
 }
 
 /// Red "!" that explains the feature needs administrator rights.
@@ -173,7 +189,9 @@ pub fn check(
                 .small()
                 .on_click(move |v, window, cx| on_change(*v, window, cx)),
         )
-        .when(needs_admin && !elevated, |this| this.child(admin_mark(format!("{id}-admin"), cx)))
+        .when(needs_admin && !elevated, |this| {
+            this.child(admin_mark(format!("{id}-admin"), cx))
+        })
         .into_any_element()
 }
 
@@ -223,7 +241,19 @@ impl StepperSet {
             }
             return entity;
         }
-        let entity = cx.new(|cx| Stepper::new(id.clone(), value, min, max, step, disabled, on_change, window, cx));
+        let entity = cx.new(|cx| {
+            Stepper::new(
+                id.clone(),
+                value,
+                min,
+                max,
+                step,
+                disabled,
+                on_change,
+                window,
+                cx,
+            )
+        });
         self.items.insert(id, entity.clone());
         entity
     }
@@ -246,7 +276,17 @@ pub fn stepper(
     cx: &mut App,
 ) -> AnyElement {
     host.update(cx, |set, cx| {
-        set.upsert(id.into(), value, min, max, step, disabled, Rc::new(on_change), window, cx)
+        set.upsert(
+            id.into(),
+            value,
+            min,
+            max,
+            step,
+            disabled,
+            Rc::new(on_change),
+            window,
+            cx,
+        )
     })
     .into_any_element()
 }
@@ -332,7 +372,9 @@ impl Stepper {
     fn on_edit(&mut self, live: bool, window: &mut Window, cx: &mut Context<Self>) {
         let text = self.input.read(cx).value().to_string();
         let next = if live {
-            let Some(v) = parsed_in_range(&text, self.min, self.max) else { return };
+            let Some(v) = parsed_in_range(&text, self.min, self.max) else {
+                return;
+            };
             v
         } else {
             commit_value(&text, self.min, self.max, self.value)
@@ -345,7 +387,8 @@ impl Stepper {
         if !live {
             let normalized = self.value.to_string();
             if text != normalized {
-                self.input.update(cx, |input, cx| input.set_value(normalized, window, cx));
+                self.input
+                    .update(cx, |input, cx| input.set_value(normalized, window, cx));
             }
         }
     }
@@ -362,7 +405,11 @@ impl Render for Stepper {
         let this = cx.entity().downgrade();
         let dec = this.clone();
         let id = self.id.clone();
-        let border = if focused { cx.theme().ring } else { cx.theme().input };
+        let border = if focused {
+            cx.theme().ring
+        } else {
+            cx.theme().input
+        };
         h_flex()
             .flex_shrink_0()
             .items_center()
@@ -392,7 +439,9 @@ impl Render for Stepper {
                         .pl(pad)
                         .pr(px(0.))
                         .disabled(self.disabled)
-                        .when(self.disabled, |this| this.text_color(cx.theme().muted_foreground)),
+                        .when(self.disabled, |this| {
+                            this.text_color(cx.theme().muted_foreground)
+                        }),
                 ),
             )
             .child(
@@ -417,20 +466,34 @@ fn bump(this: &WeakEntity<Stepper>, dir: i32, window: &mut Window, cx: &mut App)
             return None;
         }
         let text = stepper.input.read(cx).value().to_string();
-        let next = step_value(&text, stepper.value, stepper.min, stepper.max, stepper.step, dir);
+        let next = step_value(
+            &text,
+            stepper.value,
+            stepper.min,
+            stepper.max,
+            stepper.step,
+            dir,
+        );
         if next == stepper.value && text == next.to_string() {
             return None;
         }
         let changed = next != stepper.value;
         stepper.value = next;
-        Some((next, changed, stepper.on_change.clone(), stepper.input.clone()))
+        Some((
+            next,
+            changed,
+            stepper.on_change.clone(),
+            stepper.input.clone(),
+        ))
     }) else {
         return;
     };
     if changed {
         on_change(next, window, cx);
     }
-    input.update(cx, |input, cx| input.set_value(next.to_string(), window, cx));
+    input.update(cx, |input, cx| {
+        input.set_value(next.to_string(), window, cx)
+    });
 }
 
 fn field_width(min: i32, max: i32) -> gpui::Pixels {
@@ -455,13 +518,20 @@ fn text_width(text: &str, window: &Window) -> gpui::Pixels {
     style.font_size = rems(0.75).into();
     let font_size = style.font_size.to_pixels(window.rem_size());
     let run = style.to_run(text.len());
-    window.text_system().shape_line(text.to_string().into(), font_size, &[run], None).width
+    window
+        .text_system()
+        .shape_line(text.to_string().into(), font_size, &[run], None)
+        .width
 }
 
 /// Digits only, with an optional leading minus while `allow_neg` is set.
 /// An empty field and a lone `-` are allowed so the user can keep typing.
 fn integer_text(text: &str, allow_neg: bool) -> bool {
-    let rest = if allow_neg { text.strip_prefix('-').unwrap_or(text) } else { text };
+    let rest = if allow_neg {
+        text.strip_prefix('-').unwrap_or(text)
+    } else {
+        text
+    };
     rest.len() <= 8 && rest.bytes().all(|b| b.is_ascii_digit())
 }
 
@@ -476,7 +546,11 @@ fn commit_value(text: &str, min: i32, max: i32, fallback: i32) -> i32 {
 
 fn step_value(text: &str, current: i32, min: i32, max: i32, step: i32, dir: i32) -> i32 {
     let base = text.parse::<i32>().unwrap_or(current).clamp(min, max);
-    if dir < 0 { base.saturating_sub(step).max(min) } else { base.saturating_add(step).min(max) }
+    if dir < 0 {
+        base.saturating_sub(step).max(min)
+    } else {
+        base.saturating_add(step).min(max)
+    }
 }
 
 /// Drop-down list (`CBS_DROPDOWNLIST`).
@@ -554,14 +628,26 @@ pub fn footer(children: Vec<AnyElement>, cx: &App) -> gpui::Div {
 }
 
 /// Two-column key/value list used by the details windows.
-pub fn kv_row(key: impl Into<SharedString>, value: impl Into<SharedString>, odd: bool, cx: &App) -> gpui::Div {
+pub fn kv_row(
+    key: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+    odd: bool,
+    cx: &App,
+) -> gpui::Div {
     h_flex()
         .w_full()
         .px_3()
         .py_1()
         .gap_3()
         .when(odd, |d| d.bg(cx.theme().muted.opacity(0.4)))
-        .child(div().w(px(200.)).flex_shrink_0().text_sm().text_color(cx.theme().muted_foreground).child(key.into()))
+        .child(
+            div()
+                .w(px(200.))
+                .flex_shrink_0()
+                .text_sm()
+                .text_color(cx.theme().muted_foreground)
+                .child(key.into()),
+        )
         .child(div().flex_1().min_w_0().text_sm().child(value.into()))
 }
 

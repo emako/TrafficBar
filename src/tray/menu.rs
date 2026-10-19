@@ -52,7 +52,9 @@ fn apply_menu_theme() {
     }
     let dark = !win::apps_use_light_theme();
     unsafe {
-        let Ok(ux) = LoadLibraryW(w!("uxtheme.dll")) else { return };
+        let Ok(ux) = LoadLibraryW(w!("uxtheme.dll")) else {
+            return;
+        };
         let set = GetProcAddress(ux, PCSTR(135usize as *const u8));
         let flush = GetProcAddress(ux, PCSTR(136usize as *const u8));
         if let Some(set) = set {
@@ -66,7 +68,16 @@ fn apply_menu_theme() {
     }
 }
 
-fn append(menu: HMENU, id: u32, text: &str, checked: bool, disabled: bool, default: bool, radio: bool, icon: HBITMAP) {
+fn append(
+    menu: HMENU,
+    id: u32,
+    text: &str,
+    checked: bool,
+    disabled: bool,
+    default: bool,
+    radio: bool,
+    icon: HBITMAP,
+) {
     let t = wide(text);
     let mut state = MENU_ITEM_STATE(0);
     if checked {
@@ -115,7 +126,12 @@ fn separator(menu: HMENU) {
 fn submenu(menu: HMENU, sub: HMENU, text: &str, icon: HBITMAP) {
     let t = wide(text);
     unsafe {
-        let _ = AppendMenuW(menu, MF_POPUP | MF_STRING, sub.0 as usize, PCWSTR(t.as_ptr()));
+        let _ = AppendMenuW(
+            menu,
+            MF_POPUP | MF_STRING,
+            sub.0 as usize,
+            PCWSTR(t.as_ptr()),
+        );
         if icon.is_invalid() {
             return;
         }
@@ -146,7 +162,11 @@ struct MenuModel {
 
 fn build_model(plugin: Option<usize>) -> Option<MenuModel> {
     state::try_with(|s| MenuModel {
-        connections: s.connections.iter().map(|c| c.description.clone()).collect(),
+        connections: s
+            .connections
+            .iter()
+            .map(|c| c.description.clone())
+            .collect(),
         selection: s.selection.clone(),
         selected: s.selected_connection,
         show_all_interface: s.settings.general.show_all_interface,
@@ -174,14 +194,51 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
         let conn = CreatePopupMenu().unwrap_or_default();
         let all = m.selection == Selection::All;
         let auto = m.selection == Selection::Auto;
-        append(conn, ID_AUTO_SELECT, &trm("TXT_AUTO_SELECT"), auto, false, false, true, none);
-        append(conn, ID_SELECT_ALL, &trm("TXT_SELECT_ALL"), all, m.show_all_interface, false, true, none);
-        for (i, name) in m.connections.iter().enumerate().take((ID_CONNECTION_MAX - ID_CONNECTION_BASE) as usize) {
+        append(
+            conn,
+            ID_AUTO_SELECT,
+            &trm("TXT_AUTO_SELECT"),
+            auto,
+            false,
+            false,
+            true,
+            none,
+        );
+        append(
+            conn,
+            ID_SELECT_ALL,
+            &trm("TXT_SELECT_ALL"),
+            all,
+            m.show_all_interface,
+            false,
+            true,
+            none,
+        );
+        for (i, name) in m
+            .connections
+            .iter()
+            .enumerate()
+            .take((ID_CONNECTION_MAX - ID_CONNECTION_BASE) as usize)
+        {
             let checked = !auto && !all && i == m.selected;
-            append(conn, ID_CONNECTION_BASE + i as u32, name, checked, false, !all && i == m.selected, true, none);
+            append(
+                conn,
+                ID_CONNECTION_BASE + i as u32,
+                name,
+                checked,
+                false,
+                !all && i == m.selected,
+                true,
+                none,
+            );
         }
         separator(conn);
-        item(conn, ID_REFRESH_CONNECTIONS, &tr("IDS_REFRESH_CONNECTION_LIST"), none);
+        item(
+            conn,
+            ID_REFRESH_CONNECTIONS,
+            &tr("IDS_REFRESH_CONNECTION_LIST"),
+            none,
+        );
         submenu(menu, conn, &trm("TXT_SELECT_CONNECTIONS"), icons.connection);
         append(
             menu,
@@ -205,7 +262,12 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             icons.statistics,
         );
         separator(menu);
-        item(menu, ID_DISPLAY_SETTINGS, &trm("TXT_DISPLAY_SETTINGS"), icons.display);
+        item(
+            menu,
+            ID_DISPLAY_SETTINGS,
+            &trm("TXT_DISPLAY_SETTINGS"),
+            icons.display,
+        );
         separator(menu);
         append(
             menu,
@@ -217,7 +279,12 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             icons.task,
         );
-        item(menu, ID_PLUGIN_MANAGE, &trm("TXT_PLUGIN_MANAGE"), icons.plugins);
+        item(
+            menu,
+            ID_PLUGIN_MANAGE,
+            &trm("TXT_PLUGIN_MANAGE"),
+            icons.plugins,
+        );
         append(
             menu,
             ID_OPTIONS,
@@ -234,24 +301,56 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
         item(help, ID_FAQ, &trm("TXT_FAQ"), none);
         item(help, ID_UPDATE_LOG, &trm("TXT_UPDATE_LOG"), none);
         item(help, ID_ABOUT, &trm("TXT_ABOUT"), icons.about);
-        append(help, ID_CHECK_UPDATE, &trm("TXT_CHECK_UPDATE"), false, m.checking_update, false, false, none);
+        append(
+            help,
+            ID_CHECK_UPDATE,
+            &trm("TXT_CHECK_UPDATE"),
+            false,
+            m.checking_update,
+            false,
+            false,
+            none,
+        );
         submenu(menu, help, &trm("TXT_HELP_MENU"), icons.help);
         if m.elevated {
             item(menu, ID_RESTART, &tr("BAR_RESTART"), icons.restart);
         } else {
-            item(menu, ID_RESTART_AS_ADMIN, &tr("BAR_RESTART_AS_ADMIN"), icons.admin);
+            item(
+                menu,
+                ID_RESTART_AS_ADMIN,
+                &tr("BAR_RESTART_AS_ADMIN"),
+                icons.admin,
+            );
         }
         item(menu, ID_EXIT, &trm("TXT_EXIT"), icons.exit);
         if let Some((_, name, commands)) = &m.plugin {
             separator(menu);
             let sub = CreatePopupMenu().unwrap_or_default();
-            for (i, (cmd, checked)) in commands.iter().enumerate().take((ID_PLUGIN_COMMAND_MAX - ID_PLUGIN_COMMAND_BASE) as usize) {
-                append(sub, ID_PLUGIN_COMMAND_BASE + i as u32, cmd, *checked, false, false, false, none);
+            for (i, (cmd, checked)) in commands
+                .iter()
+                .enumerate()
+                .take((ID_PLUGIN_COMMAND_MAX - ID_PLUGIN_COMMAND_BASE) as usize)
+            {
+                append(
+                    sub,
+                    ID_PLUGIN_COMMAND_BASE + i as u32,
+                    cmd,
+                    *checked,
+                    false,
+                    false,
+                    false,
+                    none,
+                );
             }
             if !commands.is_empty() {
                 separator(sub);
             }
-            item(sub, ID_PLUGIN_OPTIONS, &trm("TXT_PLUGIN_OPTIONS"), icons.settings);
+            item(
+                sub,
+                ID_PLUGIN_OPTIONS,
+                &trm("TXT_PLUGIN_OPTIONS"),
+                icons.settings,
+            );
             item(sub, ID_PLUGIN_DETAIL, &trm("TXT_PLUGIN_DETAIL"), icons.info);
             submenu(menu, sub, name, none);
         }
@@ -296,7 +395,14 @@ fn help_url(kind: u32) -> String {
             }
         }
         ID_FAQ => format!("{host}{}", if zh { "Help.md" } else { "Help_en-us.md" }),
-        _ => format!("{host}UpdateLog/{}", if zh { "update_log.md" } else { "update_log_en-us.md" }),
+        _ => format!(
+            "{host}UpdateLog/{}",
+            if zh {
+                "update_log.md"
+            } else {
+                "update_log_en-us.md"
+            }
+        ),
     }
 }
 
@@ -332,7 +438,9 @@ fn execute(owner: HWND, id: u32, plugin: Option<usize>) {
     match id {
         ID_AUTO_SELECT => select_connection(Selection::Auto),
         ID_SELECT_ALL => select_connection(Selection::All),
-        ID_CONNECTION_BASE..=ID_CONNECTION_MAX => select_connection(Selection::Index((id - ID_CONNECTION_BASE) as usize)),
+        ID_CONNECTION_BASE..=ID_CONNECTION_MAX => {
+            select_connection(Selection::Index((id - ID_CONNECTION_BASE) as usize))
+        }
         ID_REFRESH_CONNECTIONS => {
             state::with(|s| {
                 if let Some(m) = &s.monitor {

@@ -2,10 +2,12 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use windows::Win32::Foundation::{ERROR_BUFFER_OVERFLOW, NO_ERROR};
 use windows::Win32::NetworkManagement::IpHelper::{
-    FreeMibTable, GetAdaptersAddresses, GetIfTable2, GAA_FLAG_INCLUDE_GATEWAYS, IP_ADAPTER_ADDRESSES_LH,
-    MIB_IF_ROW2, MIB_IF_TABLE2,
+    FreeMibTable, GAA_FLAG_INCLUDE_GATEWAYS, GetAdaptersAddresses, GetIfTable2,
+    IP_ADAPTER_ADDRESSES_LH, MIB_IF_ROW2, MIB_IF_TABLE2,
 };
-use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6};
+use windows::Win32::Networking::WinSock::{
+    AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6,
+};
 
 use crate::win::{from_pcwstr, from_wide};
 
@@ -117,7 +119,8 @@ pub fn adapters() -> Vec<AdapterAddresses> {
                 let ua = &*u;
                 if let Some(addr) = sockaddr_to_string(ua.Address.lpSockaddr) {
                     if (*ua.Address.lpSockaddr).sa_family == AF_INET {
-                        info.ipv4.push((addr, prefix_to_mask(ua.OnLinkPrefixLength)));
+                        info.ipv4
+                            .push((addr, prefix_to_mask(ua.OnLinkPrefixLength)));
                     } else {
                         info.ipv6.push(addr);
                     }
