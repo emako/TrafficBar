@@ -162,7 +162,6 @@ const EXTRA: &[(&str, &str, &str)] = &[
     ("BAR_RENDER_ULW", "Direct2D（分层窗口）", "Direct2D (layered window)"),
     ("BAR_RENDER_DCOMP", "Direct2D（DirectComposition）", "Direct2D (DirectComposition)"),
     ("BAR_PLUGIN_TEXT_ONLY", "插件项目仅显示文本，不支持插件自绘。", "Plugin items show text only; plugin custom drawing is not supported."),
-    ("BAR_HARDWARE_LIBRARY_MISSING", "未找到硬件监控库 TrafficBar.Hardware.dll。", "The hardware library TrafficBar.Hardware.dll was not found."),
     ("BAR_FOLLOW_SYSTEM", "跟随系统", "Follow system"),
     ("BAR_DOWNLOAD", "下载并安装", "Download and install"),
     ("BAR_CHECKING", "正在检查更新...", "Checking for updates..."),

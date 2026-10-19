@@ -303,6 +303,8 @@ pub struct NotifyTip {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneralSettings {
     pub check_update_when_start: bool,
+    /// Ask for administrator rights at startup. A denied UAC prompt keeps the process unelevated.
+    pub always_run_as_admin: bool,
     pub update_source: i32,
     pub auto_run: bool,
     pub auto_run_by_task_scheduler: bool,
@@ -453,6 +455,11 @@ pub fn read_language(config_dir: &std::path::Path) -> String {
     s.split('|').next().unwrap_or("").to_string()
 }
 
+pub fn read_always_run_as_admin(config_dir: &std::path::Path) -> bool {
+    let ini = Ini::load(&config_dir.join("config.ini"));
+    ini.get_bool("general", "always_run_as_admin", false)
+}
+
 fn load_colors(ini: &Ini, section: &str, key: &str, all: &[ItemKey], default_str: &str) -> HashMap<ItemKey, ItemColor> {
     let raw = ini.get_string(section, key, default_str);
     let parts: Vec<u32> = raw
@@ -499,6 +506,7 @@ impl Settings {
 
         let general = GeneralSettings {
             check_update_when_start: ini.get_bool("general", "check_update_when_start", true),
+            always_run_as_admin: ini.get_bool("general", "always_run_as_admin", false),
             update_source: ini.get_int("general", "update_source", if i18n::is_zh() { 1 } else { 0 }),
             auto_run: false,
             auto_run_by_task_scheduler: ini.get_bool("general", "auto_run_by_task_scheduler", false),
@@ -708,6 +716,7 @@ impl Settings {
         let all = all_items(plugin_ids);
         let g = &self.general;
         ini.set_bool("general", "check_update_when_start", g.check_update_when_start);
+        ini.set_bool("general", "always_run_as_admin", g.always_run_as_admin);
         ini.set_string("general", "language", &g.language);
         ini.set_int("general", "update_source", g.update_source);
         ini.set_bool("general", "show_all_interface", g.show_all_interface);

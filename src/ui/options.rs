@@ -651,6 +651,10 @@ impl OptionsView {
                     })
                 }
             })))
+            .child(check("always-admin", tr("TXT_ALWAYS_RUN_AS_ADMIN"), g.always_run_as_admin, false, false, {
+                let m = m.clone();
+                move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.always_run_as_admin = v)
+            }, cx))
             .into_any_element()
     }
 
@@ -775,7 +779,6 @@ impl OptionsView {
         let core_index = cores.iter().position(|c| *c == g.cpu_core_name).unwrap_or(0);
         let status = match &hw_state {
             HardwareState::NotElevated if g.any_hardware_enabled() => Some(tr("BAR_ADMIN_REQUIRED_TIP")),
-            HardwareState::LibraryMissing => Some(tr("BAR_HARDWARE_LIBRARY_MISSING")),
             HardwareState::Failed(e) => Some(format!("{} {e}", tr("IDS_HARDWARE_MONITOR_INIT_FAILED"))),
             _ => None,
         };

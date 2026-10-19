@@ -3,7 +3,7 @@
 .SYNOPSIS
     Pack TrafficBar with Velopack (Setup.exe, MSI, update feed).
 .DESCRIPTION
-    Runs build.ps1, copies exe + hardware dll into a clean pack dir, then vpk pack.
+    Runs build.ps1, copies the exe into a clean pack dir, then vpk pack.
 #>
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -25,12 +25,10 @@ $releaseDir = Join-Path $PSScriptRoot "target\release"
 $packDir = Join-Path $PSScriptRoot "target\pack"
 $outDir = Join-Path $PSScriptRoot "target\setup"
 $exeName = "TrafficBar.exe"
-$dllName = "TrafficBar.Hardware.dll"
 $exe = Join-Path $releaseDir $exeName
-$dll = Join-Path $releaseDir $dllName
 $icon = Join-Path $PSScriptRoot "src\assets\icons\app.ico"
 
-foreach ($path in @($exe, $dll, $icon)) {
+foreach ($path in @($exe, $icon)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Missing pack input: $path"
     }
@@ -41,7 +39,6 @@ if (Test-Path -LiteralPath $packDir) {
 }
 New-Item -ItemType Directory -Path $packDir | Out-Null
 Copy-Item -LiteralPath $exe -Destination (Join-Path $packDir $exeName)
-Copy-Item -LiteralPath $dll -Destination (Join-Path $packDir $dllName)
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw ".NET SDK 8+ (dotnet) is required"

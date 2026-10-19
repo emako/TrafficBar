@@ -1,20 +1,15 @@
-use std::ffi::c_void;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 
 use serde::Deserialize;
-use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
-use windows::core::{GUID, s, w};
 
-const BRIDGE_DLL: &str = "TrafficBar.Hardware.dll";
 const RESULT_CAP: usize = 256 * 1024;
 
-const CLSID_CLR_META_HOST: GUID = GUID::from_u128(0x9280188d_0e8e_4867_b30c_7fa83884e8de);
-const IID_ICLR_META_HOST: GUID = GUID::from_u128(0xD332DB9E_B9B3_4125_8207_A14884F53216);
-const IID_ICLR_RUNTIME_INFO: GUID = GUID::from_u128(0xBD39D1D2_BA2F_486a_89B0_B4B0CB466891);
-const CLSID_CLR_RUNTIME_HOST: GUID = GUID::from_u128(0x90F1A06E_7712_4762_86B5_7A5EBA6BDB02);
-const IID_ICLR_RUNTIME_HOST: GUID = GUID::from_u128(0x90F1A06C_7712_4762_86B5_7A5EBA6BDB02);
+static HARDWARE_DLL: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/TrafficBar.Hardware.dll"));
+
+unsafe extern "C" {
+    fn hardware_clr_call(assembly: *const u8, assembly_len: usize, arg: *const u16, ret: *mut u32) -> i32;
+}
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default)]
@@ -48,13 +43,12 @@ impl HardwareFlags {
 pub enum HardwareState {
     Disabled,
     NotElevated,
-    LibraryMissing,
     Running,
     Failed(String),
 }
 
-/// Hosts LibreHardwareMonitor inside this process, the same way the original
-/// TrafficMonitor loads OpenHardwareMonitorApi.dll.
+/// Hosts the embedded LibreHardwareMonitor assembly inside this process.
+/// `clr_host.cpp` loads the bytes with `_AppDomain::Load_3`; nothing is written to disk.
 pub struct HardwareMonitor {
     mailbox: Arc<Mailbox>,
     latest: Arc<Mutex<Option<HardwareInfo>>>,
@@ -62,10 +56,6 @@ pub struct HardwareMonitor {
     worker: Option<JoinHandle<()>>,
     flags: HardwareFlags,
     pub state: HardwareState,
-}
-
-fn bridge_path() -> PathBuf {
-    crate::win::exe_dir().join(BRIDGE_DLL)
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -106,10 +96,6 @@ impl HardwareMonitor {
             return;
         }
         self.flags = flags;
-        if !bridge_path().is_file() {
-            self.submit(None, HardwareState::LibraryMissing);
-            return;
-        }
         if !self.ensure_worker() {
             return;
         }
@@ -206,13 +192,7 @@ fn worker(mailbox: Arc<Mailbox>, latest: Arc<Mutex<Option<HardwareInfo>>>, share
                 }
                 let Some(flags) = job.flags else { continue };
                 if host.is_none() {
-                    match ClrHost::start() {
-                        Ok(started) => host = Some(started),
-                        Err(err) => {
-                            publish(&mailbox, &latest, &shared_state, job.generation, HardwareState::Failed(err), None);
-                            continue;
-                        }
-                    }
+                    host = Some(ClrHost);
                 }
                 let Some(host_ref) = host.as_ref() else { continue };
                 match open_monitor(host_ref, flags) {
@@ -284,7 +264,7 @@ fn close_monitor(host: &ClrHost) -> Result<(), String> {
 }
 
 fn call_info(host: &ClrHost, op: &str, payload: &str) -> Result<HardwareInfo, String> {
-    let text = host.call(&bridge_path(), op, payload)?;
+    let text = host.call(op, payload)?;
     serde_json::from_str(&text).map_err(|err| format!("bad hardware response: {err}"))
 }
 
@@ -371,119 +351,17 @@ impl Mailbox {
     }
 }
 
-/// CLR v4 host. The runtime is intentionally kept for the life of the process:
-/// `ICLRRuntimeHost::Stop` can hang once managed code has run.
-struct ClrHost {
-    runtime: *mut c_void,
-}
-
-type ClrCreateInstance = unsafe extern "system" fn(*const GUID, *const GUID, *mut *mut c_void) -> i32;
-
-#[repr(C)]
-struct IUnknownVtbl {
-    _query: *const c_void,
-    _add: *const c_void,
-    release: unsafe extern "system" fn(*mut c_void) -> u32,
-}
-
-#[repr(C)]
-struct MetaHostVtbl {
-    _query: *const c_void,
-    _add: *const c_void,
-    _release: *const c_void,
-    // ICLRMetaHost::GetRuntime
-    get_runtime: unsafe extern "system" fn(*mut c_void, *const u16, *const GUID, *mut *mut c_void) -> i32,
-}
-
-#[repr(C)]
-struct RuntimeInfoVtbl {
-    _query: *const c_void,
-    _add: *const c_void,
-    _release: *const c_void,
-    _get_version_string: *const c_void,
-    _get_runtime_directory: *const c_void,
-    _is_loaded: *const c_void,
-    _load_error_string: *const c_void,
-    _load_library: *const c_void,
-    _get_proc_address: *const c_void,
-    // ICLRRuntimeInfo::GetInterface
-    get_interface: unsafe extern "system" fn(*mut c_void, *const GUID, *const GUID, *mut *mut c_void) -> i32,
-}
-
-#[repr(C)]
-struct RuntimeHostVtbl {
-    _query: *const c_void,
-    _add: *const c_void,
-    _release: *const c_void,
-    start: unsafe extern "system" fn(*mut c_void) -> i32,
-    _stop: *const c_void,
-    _set_host_control: *const c_void,
-    _get_clr_control: *const c_void,
-    _unload_app_domain: *const c_void,
-    _execute_in_app_domain: *const c_void,
-    _get_current_app_domain_id: *const c_void,
-    _execute_application: *const c_void,
-    // ICLRRuntimeHost::ExecuteInDefaultAppDomain
-    execute: unsafe extern "system" fn(*mut c_void, *const u16, *const u16, *const u16, *const u16, *mut u32) -> i32,
-}
+/// CLR v4 host. Startup and `Load_3` live in `clr_host.cpp`. The runtime is kept for
+/// the life of the process: stopping it can hang once managed code has run.
+struct ClrHost;
 
 impl ClrHost {
-    fn start() -> Result<Self, String> {
-        unsafe {
-            let module = LoadLibraryW(w!("mscoree.dll")).map_err(|err| format!("failed to load mscoree.dll: {err}"))?;
-            let Some(proc) = GetProcAddress(module, s!("CLRCreateInstance")) else {
-                return Err("CLRCreateInstance was not found in mscoree.dll".into());
-            };
-            let create: ClrCreateInstance = std::mem::transmute(proc);
-            let mut meta = std::ptr::null_mut();
-            let hr = create(&CLSID_CLR_META_HOST, &IID_ICLR_META_HOST, &mut meta);
-            if hr < 0 || meta.is_null() {
-                return Err(format!("CLRCreateInstance failed: 0x{:08X}", hr as u32));
-            }
-            let version = crate::win::wide("v4.0.30319");
-            let mut info = std::ptr::null_mut();
-            let hr = ((*vtbl::<MetaHostVtbl>(meta)).get_runtime)(meta, version.as_ptr(), &IID_ICLR_RUNTIME_INFO, &mut info);
-            if hr < 0 || info.is_null() {
-                release(meta);
-                return Err(format!(".NET Framework 4 runtime is unavailable: 0x{:08X}", hr as u32));
-            }
-            let mut runtime = std::ptr::null_mut();
-            let hr = ((*vtbl::<RuntimeInfoVtbl>(info)).get_interface)(
-                info,
-                &CLSID_CLR_RUNTIME_HOST,
-                &IID_ICLR_RUNTIME_HOST,
-                &mut runtime,
-            );
-            release(info);
-            release(meta);
-            if hr < 0 || runtime.is_null() {
-                return Err(format!("ICLRRuntimeHost is unavailable: 0x{:08X}", hr as u32));
-            }
-            let hr = ((*vtbl::<RuntimeHostVtbl>(runtime)).start)(runtime);
-            if hr < 0 {
-                release(runtime);
-                return Err(format!("failed to start the CLR: 0x{:08X}", hr as u32));
-            }
-            Ok(ClrHost { runtime })
-        }
-    }
-
-    fn call(&self, bridge: &Path, op: &str, payload: &str) -> Result<String, String> {
+    fn call(&self, op: &str, payload: &str) -> Result<String, String> {
         let mut buf = vec![0u8; RESULT_CAP];
         let arg = format!("{}\n{}\n{op}\n{payload}", buf.as_mut_ptr() as usize, buf.len());
         let arg_w = crate::win::wide(&arg);
-        let assembly = wide_path(bridge);
         let mut ret = 0u32;
-        let hr = unsafe {
-            ((*vtbl::<RuntimeHostVtbl>(self.runtime)).execute)(
-                self.runtime,
-                assembly.as_ptr(),
-                w!("TrafficBar.Hardware.Bridge").as_ptr(),
-                w!("Dispatch").as_ptr(),
-                arg_w.as_ptr(),
-                &mut ret,
-            )
-        };
+        let hr = unsafe { hardware_clr_call(HARDWARE_DLL.as_ptr(), HARDWARE_DLL.len(), arg_w.as_ptr(), &mut ret) };
         if hr < 0 {
             return Err(format!("CLR call failed: 0x{:08X}", hr as u32));
         }
@@ -498,34 +376,17 @@ impl ClrHost {
     }
 }
 
-unsafe fn vtbl<T>(obj: *mut c_void) -> *const T {
-    unsafe { *(obj as *const *const T) }
-}
-
-unsafe fn release(obj: *mut c_void) {
-    if !obj.is_null() {
-        unsafe { ((*vtbl::<IUnknownVtbl>(obj)).release)(obj) };
-    }
-}
-
-fn wide_path(path: &Path) -> Vec<u16> {
-    use std::os::windows::ffi::OsStrExt;
-    path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn invalid_init_is_reported_in_process() {
-        let bridge = Path::new(env!("OUT_DIR")).ancestors().nth(3).expect("profile dir").join(BRIDGE_DLL);
-        assert!(bridge.is_file(), "missing {}", bridge.display());
-        let host = ClrHost::start().expect("clr");
-        let text = host.call(&bridge, "init", "cpu").expect("dispatch");
+        let host = ClrHost;
+        let text = host.call("init", "cpu").expect("dispatch");
         let info: HardwareInfo = serde_json::from_str(&text).expect("json");
         assert!(info.error.as_deref().is_some_and(|err| !err.is_empty()), "{text}");
-        let closed = host.call(&bridge, "close", "").expect("close");
+        let closed = host.call("close", "").expect("close");
         assert_eq!(closed, "{}");
     }
 }

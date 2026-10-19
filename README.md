@@ -15,7 +15,7 @@
 cargo build --release
 ```
 
-`build.rs` 会用 `dotnet` 编译进程内硬件监控库 `TrafficBar.Hardware.dll`，输出到 `target\<profile>\`。LibreHardwareMonitor 已嵌入该 DLL；主程序在进程内加载它。
+`build.rs` 会用 `dotnet` 编译硬件监控库，再把 `TrafficBar.Hardware.dll` 嵌进 `TrafficBar.exe`。主程序从内存加载它，运行目录里没有这份 DLL。LibreHardwareMonitor 已嵌在该库内。
 
 ## 安装包
 
@@ -25,7 +25,7 @@ cargo build --release
 .\pack.ps1
 ```
 
-脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficBar.exe` 与 `TrafficBar.Hardware.dll` 打成安装包，输出到 `target\setup\`：
+脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficBar.exe` 打成安装包，输出到 `target\setup\`：
 
 安装包文件名里的版本取自 `Cargo.toml`。当前版本的三个发布文件是：
 
@@ -42,8 +42,7 @@ cargo build --release
 
 ## 温度监控
 
-温度监控与原版一样依赖 LibreHardwareMonitor，需要管理员权限。把原仓库的
-`OpenHardwareMonitorApi\LibreHardwareMonitorLib.dll` 复制到 `TrafficBar.exe` 所在目录，再在“选项设置 > 常规设置 > 硬件监控”中勾选要监控的硬件。
+温度监控与原版一样依赖 LibreHardwareMonitor，需要管理员权限。在“选项设置 > 常规设置 > 硬件监控”中勾选要监控的硬件。
 
 未以管理员身份运行时，温度相关的项目和选项后面会显示红色的 `!`，任务栏上对应的数值也显示 `!`；可以在右键菜单中选择“以管理员身份重新启动”。
 

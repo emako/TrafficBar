@@ -97,10 +97,23 @@ fn main() {
     velopack::VelopackApp::build().run();
 
     let restarted = std::env::args().any(|a| a == "--restarted");
+    let elevate_attempted = std::env::args().any(|a| a == "--elevate-attempted");
     let Some(_instance) = single_instance(restarted) else {
         return;
     };
     let (config_dir, _, _) = config::resolve_config_dir();
+    // Hold the mutex across the UAC prompt. On allow, the elevated copy waits on `--restarted`
+    // until this handle is closed. On deny, keep running unelevated.
+    if !elevate_attempted
+        && !win::is_elevated()
+        && config::read_always_run_as_admin(&config_dir)
+        && win::elevate_at_startup()
+    {
+        unsafe {
+            let _ = CloseHandle(_instance);
+        }
+        return;
+    }
     init_logging(&config_dir);
     i18n::init(&config::read_language(&config_dir));
     ui::run();

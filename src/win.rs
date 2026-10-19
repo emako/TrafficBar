@@ -277,17 +277,23 @@ pub fn system_dir() -> PathBuf {
 
 /// Restarts the current executable with the `runas` verb. Returns true if the elevated process started.
 pub fn restart_as_admin() -> bool {
-    relaunch(w!("runas"))
+    relaunch(w!("runas"), "--restarted")
 }
 
 /// Restarts the current executable in place. An elevated process stays elevated, without a UAC prompt.
 pub fn restart() -> bool {
-    relaunch(w!("open"))
+    relaunch(w!("open"), "--restarted")
 }
 
-fn relaunch(verb: windows::core::PCWSTR) -> bool {
+/// Asks UAC to start an elevated copy. Returns false when the user declines or the launch fails.
+/// `--elevate-attempted` keeps that copy from asking again if it is still not elevated.
+pub fn elevate_at_startup() -> bool {
+    relaunch(w!("runas"), "--restarted --elevate-attempted")
+}
+
+fn relaunch(verb: windows::core::PCWSTR, args: &str) -> bool {
     let exe = wide(&exe_path().to_string_lossy());
-    let args = wide("--restarted");
+    let args = wide(args);
     let r = unsafe {
         ShellExecuteW(None, verb, PCWSTR(exe.as_ptr()), PCWSTR(args.as_ptr()), None, SW_SHOWNORMAL)
     };
