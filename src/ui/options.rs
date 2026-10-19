@@ -9,8 +9,9 @@ use gpui_component::button::Button;
 use gpui_component::color_picker::{ColorPicker, ColorPickerEvent, ColorPickerState};
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
+use gpui_component::select::{SearchableVec, Select, SelectEvent, SelectState};
 use gpui_component::tab::{Tab, TabBar};
-use gpui_component::{Sizable, WindowExt, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_component::{IndexPath, Sizable, WindowExt, h_flex, scroll::ScrollableElement, v_flex};
 
 use super::common::{
     admin_mark, button, check, choice, colorref_to_hsla, footer, group, hsla_to_colorref, label, muted, primary_button,
@@ -37,7 +38,7 @@ pub struct OptionsView {
     orig_language: String,
     orig_portable: bool,
     style_modified: bool,
-    font_input: Entity<InputState>,
+    font_select: Entity<SelectState<SearchableVec<String>>>,
     exe_input: Entity<InputState>,
     steppers: Entity<StepperSet>,
     text_color: Entity<ColorPickerState>,
@@ -71,7 +72,18 @@ impl OptionsView {
         let (draft, rt) = state::with(|s| (s.settings.clone(), s.rt.clone()));
         let font_name = draft.taskbar.font.name.clone();
         let exe = draft.taskbar.double_click_exe.clone();
-        let font_input = cx.new(|cx| InputState::new(window, cx).default_value(font_name));
+        let mut fonts = crate::taskbar::render::system_font_families();
+        let selected = fonts.iter().position(|name| name.eq_ignore_ascii_case(&font_name)).or_else(|| {
+            if font_name.is_empty() {
+                None
+            } else {
+                fonts.insert(0, font_name);
+                Some(0)
+            }
+        });
+        let font_select = cx.new(|cx| {
+            SelectState::new(SearchableVec::new(fonts), selected.map(IndexPath::new), window, cx).searchable(true)
+        });
         let exe_input = cx.new(|cx| InputState::new(window, cx).default_value(exe));
         let steppers = cx.new(|_cx| StepperSet::default());
         let first_label = draft.taskbar.text_colors.get(&ItemKey::Builtin(DisplayItem::Up)).map(|c| c.label).unwrap_or(0xFFFFFF);
@@ -81,12 +93,15 @@ impl OptionsView {
             cx.new(|cx| ColorPickerState::new(window, cx).default_value(colorref_to_hsla(draft.taskbar.status_bar_color)));
 
         let mut subs = Vec::new();
-        subs.push(cx.subscribe(&font_input, |this: &mut Self, input, ev: &InputEvent, cx| {
-            if matches!(ev, InputEvent::Change) {
-                this.draft.taskbar.font.name = input.read(cx).value().to_string();
-                cx.notify();
-            }
-        }));
+        subs.push(cx.subscribe(
+            &font_select,
+            |this: &mut Self, _, ev: &SelectEvent<SearchableVec<String>>, cx| {
+                if let SelectEvent::Confirm(Some(name)) = ev {
+                    this.draft.taskbar.font.name = name.clone();
+                    cx.notify();
+                }
+            },
+        ));
         subs.push(cx.subscribe(&exe_input, |this: &mut Self, input, ev: &InputEvent, cx| {
             if matches!(ev, InputEvent::Change) {
                 this.draft.taskbar.double_click_exe = input.read(cx).value().to_string();
@@ -132,7 +147,7 @@ impl OptionsView {
             auto_run_task,
             orig_auto_run: (auto_run, auto_run_task),
             style_modified: false,
-            font_input,
+            font_select,
             exe_input,
             steppers,
             text_color,
@@ -215,7 +230,7 @@ impl OptionsView {
         let font = &t.font;
         let font_row = row()
             .child(label(tr("TXT_FONT")))
-            .child(div().w(px(180.)).child(Input::new(&self.font_input).small()))
+            .child(div().w(px(180.)).child(Select::new(&self.font_select).small().menu_width(px(240.))))
             .child(label(tr("TXT_FONT_SIZE")))
             .child(stepper(&self.steppers, "font-size", font.size, 5, 72, 1, false, {
                 let m = m.clone();

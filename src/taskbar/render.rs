@@ -29,7 +29,8 @@ use windows::Win32::Graphics::DirectWrite::{
     DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STYLE_NORMAL,
     DWRITE_FONT_WEIGHT, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_TEXT_ALIGNMENT, DWRITE_TEXT_ALIGNMENT_CENTER,
     DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_TEXT_ALIGNMENT_TRAILING, DWRITE_TEXT_METRICS, DWRITE_TEXT_RANGE,
-    DWRITE_WORD_WRAPPING_NO_WRAP, DWriteCreateFactory, IDWriteFactory, IDWriteTextFormat, IDWriteTextLayout,
+    DWRITE_WORD_WRAPPING_NO_WRAP, DWriteCreateFactory, IDWriteFactory, IDWriteFontCollection, IDWriteLocalizedStrings,
+    IDWriteTextFormat, IDWriteTextLayout,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_ALPHA_MODE_PREMULTIPLIED, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC,
@@ -44,6 +45,68 @@ use windows::core::{Interface, PCWSTR, Result};
 
 use crate::config::{color_b, color_g, color_r, FontInfo};
 use crate::win::wide;
+
+/// Installed font families, named in the UI locale, for the options font list.
+/// `CreateTextFormat` accepts these names. Cached for the process.
+pub fn system_font_families() -> Vec<String> {
+    static CACHE: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(load_font_families).clone()
+}
+
+fn load_font_families() -> Vec<String> {
+    let mut names = collect_font_families().unwrap_or_else(|e| {
+        log::warn!("font enumeration failed: {e}");
+        Vec::new()
+    });
+    if names.is_empty() {
+        names.push(crate::i18n::default_font());
+    }
+    names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    names
+}
+
+fn collect_font_families() -> Result<Vec<String>> {
+    unsafe {
+        let factory: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+        let mut collection: Option<IDWriteFontCollection> = None;
+        factory.GetSystemFontCollection(&mut collection, false)?;
+        let Some(collection) = collection else {
+            return Ok(Vec::new());
+        };
+        let locale = wide(&crate::win::user_ui_language());
+        let english = wide("en-us");
+        let count = collection.GetFontFamilyCount();
+        let mut names = Vec::with_capacity(count as usize);
+        for i in 0..count {
+            let family = collection.GetFontFamily(i)?;
+            let strings = family.GetFamilyNames()?;
+            let index = locale_index(&strings, &locale).or_else(|| locale_index(&strings, &english)).unwrap_or(0);
+            if let Some(name) = read_localized(&strings, index)
+                && !name.is_empty()
+            {
+                names.push(name);
+            }
+        }
+        Ok(names)
+    }
+}
+
+fn locale_index(names: &IDWriteLocalizedStrings, locale: &[u16]) -> Option<u32> {
+    let mut index = 0u32;
+    let mut exists = windows::core::BOOL(0);
+    unsafe { names.FindLocaleName(PCWSTR(locale.as_ptr()), &mut index, &mut exists).ok()? };
+    (exists.0 != 0).then_some(index)
+}
+
+fn read_localized(names: &IDWriteLocalizedStrings, index: u32) -> Option<String> {
+    unsafe {
+        let len = names.GetStringLength(index).ok()? as usize;
+        let mut buf = vec![0u16; len + 1];
+        names.GetString(index, &mut buf).ok()?;
+        Some(crate::win::from_wide(&buf))
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum RenderMode {
