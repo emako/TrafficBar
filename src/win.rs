@@ -11,7 +11,11 @@ use windows::Win32::System::Registry::{
     RRF_RT_REG_DWORD,
 };
 use windows::Win32::System::SystemInformation::OSVERSIONINFOW;
-use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::Win32::System::Threading::{
+    GetCurrentProcess, OpenProcessToken, SetPriorityClass, SetProcessInformation, IDLE_PRIORITY_CLASS,
+    NORMAL_PRIORITY_CLASS, PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+    PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling,
+};
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -218,6 +222,33 @@ pub fn windows_version() -> WinVersion {
             build: info.dwBuildNumber,
         }
     })
+}
+
+/// Task Manager efficiency mode: EcoQoS plus idle priority. Windows 11 only; older systems stay unchanged.
+pub fn set_efficiency_mode(enable: bool) {
+    if !windows_version().is_windows11_or_later() {
+        return;
+    }
+    unsafe {
+        let process = GetCurrentProcess();
+        let state = PROCESS_POWER_THROTTLING_STATE {
+            Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+            ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+            StateMask: if enable { PROCESS_POWER_THROTTLING_EXECUTION_SPEED } else { 0 },
+        };
+        if let Err(e) = SetProcessInformation(
+            process,
+            ProcessPowerThrottling,
+            &state as *const PROCESS_POWER_THROTTLING_STATE as *const c_void,
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        ) {
+            log::warn!("SetProcessInformation(ProcessPowerThrottling) failed: {e}");
+        }
+        let priority = if enable { IDLE_PRIORITY_CLASS } else { NORMAL_PRIORITY_CLASS };
+        if let Err(e) = SetPriorityClass(process, priority) {
+            log::warn!("SetPriorityClass failed: {e}");
+        }
+    }
 }
 
 pub fn is_elevated() -> bool {

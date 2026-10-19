@@ -188,6 +188,7 @@ pub fn start(ui_tx: UnboundedSender<UiCommand>) {
         settings.apply_default_style(idx);
     }
     settings.other.last_light_mode = rt.light_theme;
+    win::set_efficiency_mode(settings.general.efficiency_mode);
 
     let history = HistoryTraffic::load(settings.history_path());
     let (today_up, today_down) = history.today_bytes();
@@ -619,7 +620,9 @@ fn handle_main_msg(msg: MainMsg) {
             }
         }
         MainMsg::SettingsChanged { reopen_taskbar: reopen } => {
-            let (params, rt) = state::with(|s| (monitor_params(&s.settings), s.rt.clone()));
+            let (params, rt, efficiency) =
+                state::with(|s| (monitor_params(&s.settings), s.rt.clone(), s.settings.general.efficiency_mode));
+            win::set_efficiency_mode(efficiency);
             state::with(|s| {
                 if let Some(m) = &s.monitor {
                     m.send(MonitorCmd::SetParams(params));

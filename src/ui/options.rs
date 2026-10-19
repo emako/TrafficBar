@@ -654,6 +654,19 @@ impl OptionsView {
                 let m = m.clone();
                 move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.always_run_as_admin = v)
             }, cx))
+            .child(check(
+                "efficiency-mode",
+                tr("TXT_EFFICIENCY_MODE"),
+                g.efficiency_mode,
+                !self.rt.version.is_windows11_or_later(),
+                false,
+                {
+                    let m = m.clone();
+                    move |v, w, cx| Self::update(&m, w, cx, |s, _, _| s.draft.general.efficiency_mode = v)
+                },
+                cx,
+            ))
+            .child(muted(tr("TXT_EFFICIENCY_MODE_TIP"), cx))
             .into_any_element()
     }
 

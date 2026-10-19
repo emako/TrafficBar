@@ -305,6 +305,8 @@ pub struct GeneralSettings {
     pub check_update_when_start: bool,
     /// Ask for administrator rights at startup. A denied UAC prompt keeps the process unelevated.
     pub always_run_as_admin: bool,
+    /// Windows 11 efficiency mode: idle priority plus EcoQoS. Off leaves the process at normal priority.
+    pub efficiency_mode: bool,
     pub update_source: i32,
     pub auto_run: bool,
     pub auto_run_by_task_scheduler: bool,
@@ -507,6 +509,7 @@ impl Settings {
         let general = GeneralSettings {
             check_update_when_start: ini.get_bool("general", "check_update_when_start", true),
             always_run_as_admin: ini.get_bool("general", "always_run_as_admin", false),
+            efficiency_mode: ini.get_bool("general", "efficiency_mode", false),
             update_source: ini.get_int("general", "update_source", if i18n::is_zh() { 1 } else { 0 }),
             auto_run: false,
             auto_run_by_task_scheduler: ini.get_bool("general", "auto_run_by_task_scheduler", false),
@@ -717,6 +720,7 @@ impl Settings {
         let g = &self.general;
         ini.set_bool("general", "check_update_when_start", g.check_update_when_start);
         ini.set_bool("general", "always_run_as_admin", g.always_run_as_admin);
+        ini.set_bool("general", "efficiency_mode", g.efficiency_mode);
         ini.set_string("general", "language", &g.language);
         ini.set_int("general", "update_source", g.update_source);
         ini.set_bool("general", "show_all_interface", g.show_all_interface);
