@@ -611,12 +611,10 @@ impl OptionsView {
     fn app_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
         let g = &self.draft.general;
         let m = me.clone();
-        let languages = vec![tr("BAR_FOLLOW_SYSTEM"), crate::i18n::Lang::ZhCn.display_name().into(), crate::i18n::Lang::EnUs.display_name().into()];
-        let lang_index = match crate::i18n::Lang::from_bcp47(&g.language) {
-            None => 0,
-            Some(crate::i18n::Lang::ZhCn) => 1,
-            Some(crate::i18n::Lang::EnUs) => 2,
-        };
+        let language_ids: Vec<String> = crate::i18n::choices().into_iter().map(|(id, _)| id).collect();
+        let mut languages = vec![tr("BAR_FOLLOW_SYSTEM")];
+        languages.extend(crate::i18n::choices().into_iter().map(|(_, name)| name));
+        let lang_index = crate::i18n::choice_index(&g.language);
         let checking = state::with(|s| s.checking_update);
         group(tr("TXT_APPLICATION_SETTINGS"), cx)
             .child(
@@ -641,13 +639,14 @@ impl OptionsView {
             )
             .child(row().child(label(tr("TXT_LANGUAGE"))).child(choice("language", languages, lang_index, false, {
                 let m = m.clone();
+                let language_ids = language_ids.clone();
                 move |i, w, cx| {
                     Self::update(&m, w, cx, |s, _, _| {
-                        s.draft.general.language = match i {
-                            1 => "zh-CN".into(),
-                            2 => "en-US".into(),
-                            _ => String::new(),
-                        }
+                        s.draft.general.language = if i == 0 {
+                            String::new()
+                        } else {
+                            language_ids.get(i - 1).cloned().unwrap_or_default()
+                        };
                     })
                 }
             })))

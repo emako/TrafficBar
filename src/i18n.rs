@@ -1,97 +1,168 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use windows::Win32::Globalization::LocaleNameToLCID;
+use windows::core::PCWSTR;
+
 use crate::config::ini::Ini;
 
-const ZH_CN: &str = include_str!("assets/lang/zh-CN.ini");
-const EN_US: &str = include_str!("assets/lang/en-US.ini");
+const LANG_SOURCES: &[(&str, &str)] = &[
+    ("de-DE", include_str!("assets/lang/de-DE.ini")),
+    ("en-US", include_str!("assets/lang/en-US.ini")),
+    ("es-419", include_str!("assets/lang/es-419.ini")),
+    ("es-ES", include_str!("assets/lang/es-ES.ini")),
+    ("fr-FR", include_str!("assets/lang/fr-FR.ini")),
+    ("he-IL", include_str!("assets/lang/he-IL.ini")),
+    ("hu-HU", include_str!("assets/lang/hu-HU.ini")),
+    ("it-IT", include_str!("assets/lang/it-IT.ini")),
+    ("ja-JP", include_str!("assets/lang/ja-JP.ini")),
+    ("ko-KR", include_str!("assets/lang/ko-KR.ini")),
+    ("pl-PL", include_str!("assets/lang/pl-PL.ini")),
+    ("pt-BR", include_str!("assets/lang/pt-BR.ini")),
+    ("ru-RU", include_str!("assets/lang/ru-RU.ini")),
+    ("sl-SI", include_str!("assets/lang/sl-SI.ini")),
+    ("th-TH", include_str!("assets/lang/th-TH.ini")),
+    ("tr-TR", include_str!("assets/lang/tr-TR.ini")),
+    ("vi-VN", include_str!("assets/lang/vi-VN.ini")),
+    ("zh-CN", include_str!("assets/lang/zh-CN.ini")),
+    ("zh-TW", include_str!("assets/lang/zh-TW.ini")),
+];
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Lang {
-    ZhCn,
-    EnUs,
-}
-
-impl Lang {
-    pub fn display_name(self) -> &'static str {
-        match self {
-            Lang::ZhCn => "简体中文",
-            Lang::EnUs => "English",
-        }
-    }
-
-    pub fn from_bcp47(s: &str) -> Option<Lang> {
-        let s = s.to_ascii_lowercase();
-        if s.starts_with("zh") {
-            Some(Lang::ZhCn)
-        } else if s.starts_with("en") {
-            Some(Lang::EnUs)
-        } else {
-            None
-        }
-    }
-}
-
-struct Table {
-    lang: Lang,
+struct Loaded {
+    bcp47: String,
+    display_name: String,
+    default_font: String,
     text: HashMap<String, String>,
     menu: HashMap<String, String>,
-    default_font: String,
 }
 
-static TABLE: OnceLock<Table> = OnceLock::new();
+static ALL: OnceLock<Vec<Loaded>> = OnceLock::new();
+static CURRENT: OnceLock<usize> = OnceLock::new();
 
-/// `configured` is the bcp-47 tag saved in the config ("" follows the system language).
-pub fn init(configured: &str) {
-    let lang = Lang::from_bcp47(configured).unwrap_or_else(system_lang);
-    let src = match lang {
-        Lang::ZhCn => ZH_CN,
-        Lang::EnUs => EN_US,
-    };
+fn load_source(src: &str) -> Loaded {
     let ini = Ini::from_str(src.trim_start_matches('\u{feff}'));
-    let mut text: HashMap<String, String> = ini.section_keys("text").into_iter().collect();
-    let menu: HashMap<String, String> = ini.section_keys("menu").into_iter().collect();
-    for (k, zh, en) in EXTRA {
-        text.insert(
-            (*k).to_string(),
-            match lang {
-                Lang::ZhCn => (*zh).to_string(),
-                Lang::EnUs => (*en).to_string(),
-            },
-        );
+    Loaded {
+        bcp47: ini.get_string("general", "BCP_47", "en-US"),
+        display_name: ini.get_string("general", "DISPLAY_NAME", "English"),
+        default_font: ini.get_string("general", "DEFAULT_FONT", "Segoe UI"),
+        text: ini.section_keys("text").into_iter().collect(),
+        menu: ini.section_keys("menu").into_iter().collect(),
     }
-    let default_font = ini.get_string("general", "DEFAULT_FONT", "Segoe UI");
-    let _ = TABLE.set(Table {
-        lang,
-        text,
-        menu,
-        default_font,
-    });
 }
 
-fn table() -> &'static Table {
-    TABLE.get_or_init(|| {
-        let ini = Ini::from_str(EN_US.trim_start_matches('\u{feff}'));
-        Table {
-            lang: Lang::EnUs,
-            text: ini.section_keys("text").into_iter().collect(),
-            menu: ini.section_keys("menu").into_iter().collect(),
-            default_font: "Segoe UI".into(),
-        }
+fn all() -> &'static [Loaded] {
+    ALL.get_or_init(|| {
+        let mut langs: Vec<Loaded> = LANG_SOURCES.iter().map(|(_, src)| load_source(src)).collect();
+        langs.sort_by(|a, b| a.bcp47.cmp(&b.bcp47).then(a.display_name.cmp(&b.display_name)));
+        langs
     })
 }
 
-pub fn system_lang() -> Lang {
-    let name = crate::win::user_ui_language();
-    Lang::from_bcp47(&name).unwrap_or(Lang::EnUs)
+fn english_index(langs: &[Loaded]) -> usize {
+    langs.iter().position(|lang| lang.bcp47 == "en-US").unwrap_or(0)
 }
 
-pub fn current() -> Lang {
-    table().lang
+fn match_tag(langs: &[Loaded], tag: &str) -> usize {
+    let tag = tag.trim();
+    if tag.is_empty() {
+        return english_index(langs);
+    }
+    let exact: Vec<usize> = langs
+        .iter()
+        .enumerate()
+        .filter(|(_, lang)| lang.bcp47.eq_ignore_ascii_case(tag))
+        .map(|(index, _)| index)
+        .collect();
+    if exact.len() == 1 {
+        return exact[0];
+    }
+    let lower = tag.to_ascii_lowercase().replace('_', "-");
+    if lower.starts_with("zh") {
+        let want = if lower.contains("hant") || lower.contains("-tw") || lower.contains("-hk") || lower.contains("-mo") {
+            "zh-TW"
+        } else {
+            "zh-CN"
+        };
+        if let Some(index) = langs.iter().position(|lang| lang.bcp47.eq_ignore_ascii_case(want)) {
+            return index;
+        }
+    }
+    if lower.starts_with("es") && !lower.starts_with("es-es") {
+        if let Some(index) = langs.iter().position(|lang| lang.bcp47 == "es-419") {
+            return index;
+        }
+    }
+    let primary = lower.split('-').next().unwrap_or(lower.as_str());
+    let same_language: Vec<usize> = langs
+        .iter()
+        .enumerate()
+        .filter(|(_, lang)| lang.bcp47.split('-').next().unwrap_or("").eq_ignore_ascii_case(primary))
+        .map(|(index, _)| index)
+        .collect();
+    if same_language.len() == 1 {
+        return same_language[0];
+    }
+    english_index(langs)
+}
+
+/// `configured` is the BCP-47 tag saved in the config. An empty string follows the system language.
+pub fn init(configured: &str) {
+    let langs = all();
+    let index = if configured.trim().is_empty() {
+        match_tag(langs, &crate::win::user_ui_language())
+    } else {
+        langs
+            .iter()
+            .position(|lang| lang.bcp47.eq_ignore_ascii_case(configured.trim()))
+            .unwrap_or_else(|| match_tag(langs, configured))
+    };
+    let _ = CURRENT.set(index);
+}
+
+fn table() -> &'static Loaded {
+    let langs = all();
+    &langs[CURRENT.get().copied().unwrap_or_else(|| english_index(langs))]
+}
+
+pub fn current_bcp47() -> &'static str {
+    table().bcp47.as_str()
 }
 
 pub fn is_zh() -> bool {
-    current() == Lang::ZhCn
+    current_bcp47().eq_ignore_ascii_case("zh-CN")
+}
+
+/// Locale passed to gpui-component, which only ships `en`, `zh-CN`, `zh-HK`, and `it`.
+pub fn component_locale() -> &'static str {
+    match current_bcp47() {
+        "zh-CN" => "zh-CN",
+        "zh-TW" => "zh-HK",
+        "it-IT" => "it",
+        _ => "en",
+    }
+}
+
+pub fn lang_id() -> u16 {
+    let wide = crate::win::wide(current_bcp47());
+    let id = unsafe { LocaleNameToLCID(PCWSTR(wide.as_ptr()), 0) };
+    if id == 0 { 0x0409 } else { id as u16 }
+}
+
+/// `(bcp47, display name)` in BCP-47 order, for the language picker.
+pub fn choices() -> Vec<(String, String)> {
+    all().iter().map(|lang| (lang.bcp47.clone(), lang.display_name.clone())).collect()
+}
+
+/// Index in the picker, where 0 is "follow system".
+pub fn choice_index(configured: &str) -> usize {
+    if configured.trim().is_empty() {
+        return 0;
+    }
+    choices()
+        .iter()
+        .position(|(id, _)| id.eq_ignore_ascii_case(configured.trim()))
+        .map(|index| index + 1)
+        .unwrap_or(0)
 }
 
 pub fn default_font() -> String {
@@ -101,21 +172,13 @@ pub fn default_font() -> String {
 /// Dialog / string-table text. Escaped `\r\n` and `\n` sequences from the ini are already unescaped.
 pub fn tr(key: &str) -> String {
     let t = table();
-    t.text
-        .get(key)
-        .or_else(|| t.menu.get(key))
-        .cloned()
-        .unwrap_or_else(|| key.to_string())
+    t.text.get(key).or_else(|| t.menu.get(key)).cloned().unwrap_or_else(|| key.to_string())
 }
 
 /// Menu text (keeps the `&` mnemonic markers).
 pub fn trm(key: &str) -> String {
     let t = table();
-    t.menu
-        .get(key)
-        .or_else(|| t.text.get(key))
-        .cloned()
-        .unwrap_or_else(|| key.to_string())
+    t.menu.get(key).or_else(|| t.text.get(key)).cloned().unwrap_or_else(|| key.to_string())
 }
 
 /// Text without mnemonic markers like `(&O)` or `&`, for GPUI buttons.
@@ -142,45 +205,39 @@ pub fn strip_mnemonic(s: &str) -> String {
     out
 }
 
-const EXTRA: &[(&str, &str, &str)] = &[
-    ("APP_NAME", "TrafficBar", "TrafficBar"),
-    ("BAR_ADMIN_REQUIRED", "需要管理员权限", "Requires administrator privileges"),
-    (
-        "BAR_ADMIN_REQUIRED_TIP",
-        "当前未以管理员身份运行，此功能不可用。请在右键菜单中选择“以管理员身份重新启动”。",
-        "Not running as administrator, so this feature is unavailable. Choose \"Restart as administrator\" from the context menu.",
-    ),
-    ("BAR_RESTART_AS_ADMIN", "以管理员身份重新启动(&R)", "&Restart as administrator"),
-    ("BAR_RESTART", "重新启动(&R)", "&Restart"),
-    ("BAR_NO_TASKBAR", "未找到任务栏", "Taskbar not found"),
-    (
-        "BAR_D2D_FAILED",
-        "Direct2D 渲染任务栏窗口失败，任务栏窗口已停止更新。错误代码：",
-        "Direct2D failed to render the taskbar window and it has stopped updating. Error code: ",
-    ),
-    ("BAR_RENDER_MODE", "渲染方式：", "Rendering: "),
-    ("BAR_RENDER_ULW", "Direct2D（分层窗口）", "Direct2D (layered window)"),
-    ("BAR_RENDER_DCOMP", "Direct2D（DirectComposition）", "Direct2D (DirectComposition)"),
-    ("BAR_PLUGIN_TEXT_ONLY", "插件项目仅显示文本，不支持插件自绘。", "Plugin items show text only; plugin custom drawing is not supported."),
-    ("BAR_FOLLOW_SYSTEM", "跟随系统", "Follow system"),
-    ("BAR_DOWNLOAD", "下载并安装", "Download and install"),
-    ("BAR_CHECKING", "正在检查更新...", "Checking for updates..."),
-    ("BAR_CURRENT_VERSION", "当前版本：", "Current version: "),
-    ("BAR_LATEST_VERSION", "最新版本：", "Latest version: "),
-    (
-        "BAR_UPDATE_NOT_INSTALLED",
-        "当前不是通过安装包运行的版本，无法在程序内更新。请先运行 TrafficBar-Setup.exe 或 MSI 安装。",
-        "This copy was not installed with the package, so in-app updates are unavailable. Run TrafficBar-Setup.exe or the MSI first.",
-    ),
-    ("BAR_UPDATE_DOWNLOADING", "正在下载 V%s… %s%", "Downloading V%s… %s%"),
-    ("BAR_UPDATE_DOWNLOAD_FAILED", "下载或安装更新失败，请稍后重试。", "Failed to download or install the update. Please try again later."),
-    ("BAR_BASED_ON", "基于 TrafficMonitor（作者 ZhongYang）复刻的任务栏版本", "Taskbar-only rewrite based on TrafficMonitor by ZhongYang"),
-    ("BAR_SOURCE_CODE", "原版项目主页", "Original project"),
-    ("BAR_HOVER_ITEM", "选中项目", "Selected item"),
-    ("BAR_SHOW_ITEM", "显示", "Show"),
-    ("BAR_LABEL", "标签", "Label"),
-    ("BAR_NO_PLUGINS", "未加载任何插件。插件 dll 需放在程序所在目录的 plugins 文件夹下。", "No plugins loaded. Put plugin dlls in the plugins folder next to the program."),
-    ("BAR_PLUGIN_COMMANDS", "插件命令", "Plugin commands"),
-    ("BAR_UP_DOWN", "上传/下载", "Upload/Download"),
-    ("BAR_OFF", "关闭", "Off"),
-];
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    fn section_keys(src: &str) -> HashSet<(String, String)> {
+        let ini = Ini::from_str(src.trim_start_matches('\u{feff}'));
+        let mut keys = HashSet::new();
+        for section in ["general", "text", "menu"] {
+            for (key, _) in ini.section_keys(section) {
+                keys.insert((section.to_string(), key));
+            }
+        }
+        keys
+    }
+
+    #[test]
+    fn every_language_has_the_english_keys() {
+        let english = section_keys(include_str!("assets/lang/en-US.ini"));
+        for (name, src) in LANG_SOURCES {
+            let keys = section_keys(src);
+            let missing: Vec<_> = english.difference(&keys).collect();
+            assert!(missing.is_empty(), "{name} is missing {missing:?}");
+        }
+    }
+
+    #[test]
+    fn thai_follows_system_wording() {
+        let ini = Ini::from_str(include_str!("assets/lang/th-TH.ini").trim_start_matches('\u{feff}'));
+        assert_eq!(ini.get_string("general", "BCP_47", ""), "th-TH");
+        assert_eq!(ini.get_string("general", "DISPLAY_NAME", ""), "ไทย");
+        assert_eq!(ini.get_string("text", "BAR_FOLLOW_SYSTEM", ""), "ตามระบบ");
+        assert_eq!(ini.get_string("text", "TXT_OK", ""), "ตกลง");
+    }
+}

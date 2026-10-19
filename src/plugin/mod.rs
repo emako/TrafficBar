@@ -322,7 +322,7 @@ impl PluginHost {
             dpi: 96,
             theme_color: crate::win::theme_color(),
             taskbar_hwnd: 0,
-            language_id: if crate::i18n::is_zh() { 0x0804 } else { 0x0409 },
+            language_id: crate::i18n::lang_id(),
         });
         static CALLBACKS: TmHostCallbacks = TmHostCallbacks {
             get_monitor_value: cb_get_monitor_value,

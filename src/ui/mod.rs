@@ -51,7 +51,7 @@ pub fn run() {
     let (tx, mut rx) = futures::channel::mpsc::unbounded::<UiCommand>();
     Application::new().with_assets(assets::Assets).run(move |cx: &mut App| {
         gpui_component::init(cx);
-        gpui_component::set_locale(if crate::i18n::is_zh() { "zh-CN" } else { "en" });
+        gpui_component::set_locale(crate::i18n::component_locale());
         setup_theme(cx);
         cx.set_global(OpenWindows::default());
         tooltip::ensure_window(cx);
