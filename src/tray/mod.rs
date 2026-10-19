@@ -1,5 +1,6 @@
 //! Notification area icon (Shell_NotifyIcon) and the native Win32 context menu.
 
+pub mod icons;
 pub mod menu;
 
 use std::cell::RefCell;

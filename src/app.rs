@@ -655,14 +655,24 @@ pub fn open_task_manager() {
 }
 
 pub fn restart_as_admin() {
+    relaunch(true);
+}
+
+/// Relaunch the current process. Used after installing a plugin while already elevated.
+pub fn restart() {
+    relaunch(false);
+}
+
+fn relaunch(as_admin: bool) {
     state::with(|s| {
         s.save_settings();
     });
     shutdown();
-    if win::restart_as_admin() {
+    let started = if as_admin { win::restart_as_admin() } else { win::restart() };
+    if started {
         send_ui(UiCommand::Quit);
     } else {
-        // The user declined the UAC prompt: bring everything back up.
+        // The user declined the UAC prompt, or the new process failed to start.
         let hwnd = main_hwnd();
         let light = state::with(|s| s.rt.light_theme);
         tray::create(hwnd, light);

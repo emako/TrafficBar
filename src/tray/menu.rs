@@ -1,9 +1,13 @@
 //! Native popup menu shared by the tray icon and the taskbar window (`IDR_TASK_BAR_MENU`
 //! without the main-window, skin and notify-icon entries). Dark mode follows the approach of
 //! NativeTray: `SetPreferredAppMode` + `FlushMenuThemes` from uxtheme before every popup.
+//! Item bitmaps follow the original `CMenuIcon` assignments. Each icon is an ICO with the same
+//! 16/20/24/28/32 frames, and the frame is chosen with `DPI(16)`.
 
 use windows::Win32::Foundation::{HWND, POINT};
+use windows::Win32::Graphics::Gdi::HBITMAP;
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
+use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{PCSTR, PCWSTR, w};
 
@@ -29,6 +33,7 @@ const ID_UPDATE_LOG: u32 = 122;
 const ID_ABOUT: u32 = 123;
 const ID_CHECK_UPDATE: u32 = 124;
 const ID_RESTART_AS_ADMIN: u32 = 130;
+const ID_RESTART: u32 = 132;
 const ID_EXIT: u32 = 131;
 const ID_PLUGIN_OPTIONS: u32 = 140;
 const ID_PLUGIN_DETAIL: u32 = 141;
@@ -61,7 +66,7 @@ fn apply_menu_theme() {
     }
 }
 
-fn append(menu: HMENU, id: u32, text: &str, checked: bool, disabled: bool, default: bool, radio: bool) {
+fn append(menu: HMENU, id: u32, text: &str, checked: bool, disabled: bool, default: bool, radio: bool, icon: HBITMAP) {
     let t = wide(text);
     let mut state = MENU_ITEM_STATE(0);
     if checked {
@@ -77,13 +82,18 @@ fn append(menu: HMENU, id: u32, text: &str, checked: bool, disabled: bool, defau
     if radio {
         ftype |= MFT_RADIOCHECK;
     }
+    let mut mask = MIIM_ID | MIIM_STRING | MIIM_STATE | MIIM_FTYPE;
+    if !icon.is_invalid() {
+        mask |= MIIM_BITMAP;
+    }
     let info = MENUITEMINFOW {
         cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
-        fMask: MIIM_ID | MIIM_STRING | MIIM_STATE | MIIM_FTYPE,
+        fMask: mask,
         fType: ftype,
         fState: state,
         wID: id,
         dwTypeData: windows::core::PWSTR(t.as_ptr() as *mut u16),
+        hbmpItem: icon,
         ..Default::default()
     };
     unsafe {
@@ -92,8 +102,8 @@ fn append(menu: HMENU, id: u32, text: &str, checked: bool, disabled: bool, defau
     }
 }
 
-fn item(menu: HMENU, id: u32, text: &str) {
-    append(menu, id, text, false, false, false, false);
+fn item(menu: HMENU, id: u32, text: &str, icon: HBITMAP) {
+    append(menu, id, text, false, false, false, false, icon);
 }
 
 fn separator(menu: HMENU) {
@@ -102,10 +112,24 @@ fn separator(menu: HMENU) {
     }
 }
 
-fn submenu(menu: HMENU, sub: HMENU, text: &str) {
+fn submenu(menu: HMENU, sub: HMENU, text: &str, icon: HBITMAP) {
     let t = wide(text);
     unsafe {
         let _ = AppendMenuW(menu, MF_POPUP | MF_STRING, sub.0 as usize, PCWSTR(t.as_ptr()));
+        if icon.is_invalid() {
+            return;
+        }
+        let n = GetMenuItemCount(Some(menu));
+        if n <= 0 {
+            return;
+        }
+        let info = MENUITEMINFOW {
+            cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
+            fMask: MIIM_BITMAP,
+            hbmpItem: icon,
+            ..Default::default()
+        };
+        let _ = SetMenuItemInfoW(menu, (n - 1) as u32, true, &info);
     }
 }
 
@@ -141,20 +165,24 @@ fn build_model(plugin: Option<usize>) -> Option<MenuModel> {
 pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
     let Some(m) = build_model(plugin) else { return };
     apply_menu_theme();
+    let dark = !win::apps_use_light_theme();
+    let dpi = unsafe { GetDpiForWindow(owner) };
+    let icons = crate::tray::icons::load(dark, crate::tray::icons::pixel_size(dpi));
+    let none = HBITMAP::default();
     unsafe {
         let Ok(menu) = CreatePopupMenu() else { return };
         let conn = CreatePopupMenu().unwrap_or_default();
         let all = m.selection == Selection::All;
         let auto = m.selection == Selection::Auto;
-        append(conn, ID_AUTO_SELECT, &trm("TXT_AUTO_SELECT"), auto, false, false, true);
-        append(conn, ID_SELECT_ALL, &trm("TXT_SELECT_ALL"), all, m.show_all_interface, false, true);
+        append(conn, ID_AUTO_SELECT, &trm("TXT_AUTO_SELECT"), auto, false, false, true, none);
+        append(conn, ID_SELECT_ALL, &trm("TXT_SELECT_ALL"), all, m.show_all_interface, false, true, none);
         for (i, name) in m.connections.iter().enumerate().take((ID_CONNECTION_MAX - ID_CONNECTION_BASE) as usize) {
             let checked = !auto && !all && i == m.selected;
-            append(conn, ID_CONNECTION_BASE + i as u32, name, checked, false, !all && i == m.selected, true);
+            append(conn, ID_CONNECTION_BASE + i as u32, name, checked, false, !all && i == m.selected, true, none);
         }
         separator(conn);
-        item(conn, ID_REFRESH_CONNECTIONS, &tr("IDS_REFRESH_CONNECTION_LIST"));
-        submenu(menu, conn, &trm("TXT_SELECT_CONNECTIONS"));
+        item(conn, ID_REFRESH_CONNECTIONS, &tr("IDS_REFRESH_CONNECTION_LIST"), none);
+        submenu(menu, conn, &trm("TXT_SELECT_CONNECTIONS"), icons.connection);
         append(
             menu,
             ID_NETWORK_INFO,
@@ -163,6 +191,7 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             m.double_click == DoubleClickAction::ConnectionInfo,
             false,
+            icons.info,
         );
         separator(menu);
         append(
@@ -173,9 +202,10 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             m.double_click == DoubleClickAction::HistoryTraffic,
             false,
+            icons.statistics,
         );
         separator(menu);
-        item(menu, ID_DISPLAY_SETTINGS, &trm("TXT_DISPLAY_SETTINGS"));
+        item(menu, ID_DISPLAY_SETTINGS, &trm("TXT_DISPLAY_SETTINGS"), icons.display);
         separator(menu);
         append(
             menu,
@@ -185,8 +215,9 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             m.double_click == DoubleClickAction::TaskManager,
             false,
+            icons.task,
         );
-        item(menu, ID_PLUGIN_MANAGE, &trm("TXT_PLUGIN_MANAGE"));
+        item(menu, ID_PLUGIN_MANAGE, &trm("TXT_PLUGIN_MANAGE"), icons.plugins);
         append(
             menu,
             ID_OPTIONS,
@@ -195,31 +226,34 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             m.double_click == DoubleClickAction::Options,
             false,
+            icons.settings,
         );
         separator(menu);
         let help = CreatePopupMenu().unwrap_or_default();
-        item(help, ID_HELP, &trm("TXT_HELP"));
-        item(help, ID_FAQ, &trm("TXT_FAQ"));
-        item(help, ID_UPDATE_LOG, &trm("TXT_UPDATE_LOG"));
-        item(help, ID_ABOUT, &trm("TXT_ABOUT"));
-        append(help, ID_CHECK_UPDATE, &trm("TXT_CHECK_UPDATE"), false, m.checking_update, false, false);
-        submenu(menu, help, &trm("TXT_HELP_MENU"));
-        if !m.elevated {
-            item(menu, ID_RESTART_AS_ADMIN, &tr("BAR_RESTART_AS_ADMIN"));
+        item(help, ID_HELP, &trm("TXT_HELP"), icons.help);
+        item(help, ID_FAQ, &trm("TXT_FAQ"), none);
+        item(help, ID_UPDATE_LOG, &trm("TXT_UPDATE_LOG"), none);
+        item(help, ID_ABOUT, &trm("TXT_ABOUT"), icons.about);
+        append(help, ID_CHECK_UPDATE, &trm("TXT_CHECK_UPDATE"), false, m.checking_update, false, false, none);
+        submenu(menu, help, &trm("TXT_HELP_MENU"), icons.help);
+        if m.elevated {
+            item(menu, ID_RESTART, &tr("BAR_RESTART"), icons.restart);
+        } else {
+            item(menu, ID_RESTART_AS_ADMIN, &tr("BAR_RESTART_AS_ADMIN"), icons.admin);
         }
-        item(menu, ID_EXIT, &trm("TXT_EXIT"));
+        item(menu, ID_EXIT, &trm("TXT_EXIT"), icons.exit);
         if let Some((_, name, commands)) = &m.plugin {
             separator(menu);
             let sub = CreatePopupMenu().unwrap_or_default();
             for (i, (cmd, checked)) in commands.iter().enumerate().take((ID_PLUGIN_COMMAND_MAX - ID_PLUGIN_COMMAND_BASE) as usize) {
-                append(sub, ID_PLUGIN_COMMAND_BASE + i as u32, cmd, *checked, false, false, false);
+                append(sub, ID_PLUGIN_COMMAND_BASE + i as u32, cmd, *checked, false, false, false, none);
             }
             if !commands.is_empty() {
                 separator(sub);
             }
-            item(sub, ID_PLUGIN_OPTIONS, &trm("TXT_PLUGIN_OPTIONS"));
-            item(sub, ID_PLUGIN_DETAIL, &trm("TXT_PLUGIN_DETAIL"));
-            submenu(menu, sub, name);
+            item(sub, ID_PLUGIN_OPTIONS, &trm("TXT_PLUGIN_OPTIONS"), icons.settings);
+            item(sub, ID_PLUGIN_DETAIL, &trm("TXT_PLUGIN_DETAIL"), icons.info);
+            submenu(menu, sub, name, none);
         }
 
         let mut pt = POINT::default();
@@ -316,6 +350,7 @@ fn execute(owner: HWND, id: u32, plugin: Option<usize>) {
         ID_ABOUT => app::send_ui(UiCommand::OpenAbout),
         ID_CHECK_UPDATE => app::send_ui(UiCommand::CheckUpdate { silent: false }),
         ID_RESTART_AS_ADMIN => app::restart_as_admin(),
+        ID_RESTART => app::restart(),
         ID_EXIT => app::exit(),
         ID_PLUGIN_OPTIONS => {
             if let Some(p) = plugin {

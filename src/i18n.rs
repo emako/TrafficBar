@@ -151,6 +151,7 @@ const EXTRA: &[(&str, &str, &str)] = &[
         "Not running as administrator, so this feature is unavailable. Choose \"Restart as administrator\" from the context menu.",
     ),
     ("BAR_RESTART_AS_ADMIN", "以管理员身份重新启动(&R)", "&Restart as administrator"),
+    ("BAR_RESTART", "重新启动(&R)", "&Restart"),
     ("BAR_NO_TASKBAR", "未找到任务栏", "Taskbar not found"),
     (
         "BAR_D2D_FAILED",
