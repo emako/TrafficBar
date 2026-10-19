@@ -119,24 +119,22 @@ public static class Bridge
     {
         try
         {
-            using (var service = new ServiceController("PawnIO"))
+            using var service = new ServiceController("PawnIO");
+            ServiceControllerStatus status = service.Status;
+            if (status == ServiceControllerStatus.StartPending)
             {
-                ServiceControllerStatus status = service.Status;
-                if (status == ServiceControllerStatus.StartPending)
-                {
-                    service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
-                    return;
-                }
-                if (status == ServiceControllerStatus.StopPending)
-                {
-                    service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(8));
-                    status = service.Status;
-                }
-                if (status == ServiceControllerStatus.Stopped)
-                {
-                    service.Start();
-                    service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
-                }
+                service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
+                return;
+            }
+            if (status == ServiceControllerStatus.StopPending)
+            {
+                service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(8));
+                status = service.Status;
+            }
+            if (status == ServiceControllerStatus.Stopped)
+            {
+                service.Start();
+                service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
             }
         }
         catch
