@@ -8,7 +8,6 @@ use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 use windows::core::{GUID, s, w};
 
 const BRIDGE_DLL: &str = "TrafficMonitorBar.Hardware.dll";
-pub const LHM_DLL: &str = "LibreHardwareMonitorLib.dll";
 const RESULT_CAP: usize = 256 * 1024;
 
 const CLSID_CLR_META_HOST: GUID = GUID::from_u128(0x9280188d_0e8e_4867_b30c_7fa83884e8de);
@@ -50,7 +49,6 @@ pub enum HardwareState {
     Disabled,
     NotElevated,
     LibraryMissing,
-    DllMissing,
     Running,
     Failed(String),
 }
@@ -64,10 +62,6 @@ pub struct HardwareMonitor {
     worker: Option<JoinHandle<()>>,
     flags: HardwareFlags,
     pub state: HardwareState,
-}
-
-pub fn lhm_path() -> PathBuf {
-    crate::win::exe_dir().join(LHM_DLL)
 }
 
 fn bridge_path() -> PathBuf {
@@ -112,10 +106,6 @@ impl HardwareMonitor {
             return;
         }
         self.flags = flags;
-        if !lhm_path().is_file() {
-            self.submit(None, HardwareState::DllMissing);
-            return;
-        }
         if !bridge_path().is_file() {
             self.submit(None, HardwareState::LibraryMissing);
             return;
@@ -271,12 +261,11 @@ fn worker(mailbox: Arc<Mailbox>, latest: Arc<Mutex<Option<HardwareInfo>>>, share
 
 fn open_monitor(host: &ClrHost, flags: HardwareFlags) -> Result<(), String> {
     let payload = format!(
-        "{}\t{}\t{}\t{}\t{}",
+        "{}\t{}\t{}\t{}",
         u8::from(flags.cpu),
         u8::from(flags.gpu),
         u8::from(flags.hdd),
-        u8::from(flags.mbd),
-        lhm_path().display()
+        u8::from(flags.mbd)
     );
     let info = call_info(host, "init", &payload)?;
     match info.error {
@@ -529,13 +518,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn missing_library_is_reported_in_process() {
+    fn invalid_init_is_reported_in_process() {
         let bridge = Path::new(env!("OUT_DIR")).ancestors().nth(3).expect("profile dir").join(BRIDGE_DLL);
         assert!(bridge.is_file(), "missing {}", bridge.display());
         let host = ClrHost::start().expect("clr");
-        let text = host
-            .call(&bridge, "init", "1\t0\t0\t0\tC:\\no-such\\LibreHardwareMonitorLib.dll")
-            .expect("dispatch");
+        let text = host.call(&bridge, "init", "cpu").expect("dispatch");
         let info: HardwareInfo = serde_json::from_str(&text).expect("json");
         assert!(info.error.as_deref().is_some_and(|err| !err.is_empty()), "{text}");
         let closed = host.call(&bridge, "close", "").expect("close");

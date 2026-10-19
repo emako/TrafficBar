@@ -27,7 +27,7 @@ fn main() {
 }
 
 /// Builds `TrafficMonitorBar.Hardware.dll` next to the main executable. The main process hosts
-/// the CLR and loads this library, the same role as the original OpenHardwareMonitorApi.dll.
+/// the CLR and loads this library. LibreHardwareMonitor is embedded by the csproj build.
 fn build_hardware_library() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let Some(target_dir) = out_dir.ancestors().nth(3).map(Path::to_path_buf) else {
@@ -39,30 +39,42 @@ fn build_hardware_library() {
             println!("cargo:warning=could not remove stale {}: {err}", stale.display());
         }
     }
-    let windir = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".into());
-    let csc = Path::new(&windir).join(r"Microsoft.NET\Framework64\v4.0.30319\csc.exe");
-    if !csc.exists() {
-        println!("cargo:warning=csc.exe not found, in-process hardware library was not built");
+    let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    let project = manifest.join("src").join("hardware_bridge").join("HardwareBridge.csproj");
+    let configuration = if std::env::var("PROFILE").ok().as_deref() == Some("release") {
+        "Release"
+    } else {
+        "Debug"
+    };
+    let output = Command::new("dotnet")
+        .args(["build", "--nologo", "-v", "q", "-c", configuration, "-p:Platform=x64"])
+        .arg(&project)
+        .output();
+    let output = match output {
+        Ok(output) => output,
+        Err(err) => {
+            println!("cargo:warning=failed to start dotnet: {err}");
+            return;
+        }
+    };
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let out = String::from_utf8_lossy(&output.stdout);
+        println!("cargo:warning=failed to build TrafficMonitorBar.Hardware.dll: {err}{out}");
         return;
     }
-    let dll = target_dir.join("TrafficMonitorBar.Hardware.dll");
-    // csc parses forward slashes as option prefixes, so the source needs a backslash path.
-    let source = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+    let built = manifest
         .join("src")
         .join("hardware_bridge")
-        .join("HardwareBridge.cs");
-    let output = Command::new(&csc)
-        .args(["/nologo", "/target:library", "/platform:anycpu", "/optimize+"])
-        .arg(format!("/out:{}", dll.display()))
-        .arg(source)
-        .output();
-    match output {
-        Ok(output) if output.status.success() => {}
-        Ok(output) => {
-            let err = String::from_utf8_lossy(&output.stderr);
-            let out = String::from_utf8_lossy(&output.stdout);
-            println!("cargo:warning=failed to build TrafficMonitorBar.Hardware.dll: {err}{out}");
-        }
-        Err(err) => println!("cargo:warning=failed to start csc.exe: {err}"),
+        .join("bin")
+        .join(configuration)
+        .join("TrafficMonitorBar.Hardware.dll");
+    let dll = target_dir.join("TrafficMonitorBar.Hardware.dll");
+    if let Err(err) = std::fs::copy(&built, &dll) {
+        println!(
+            "cargo:warning=failed to copy {} to {}: {err}",
+            built.display(),
+            dll.display()
+        );
     }
 }

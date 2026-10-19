@@ -1,28 +1,27 @@
-// In-process bridge to LibreHardwareMonitorLib.dll, same role as the original
-// OpenHardwareMonitorApi.dll. TrafficMonitorBar hosts the CLR and calls
-// TrafficMonitorBar.Hardware.Bridge.Dispatch; there is no helper process.
+// In-process hardware bridge. TrafficMonitorBar hosts the CLR and calls
+// TrafficMonitorBar.Hardware.Bridge.Dispatch. LibreHardwareMonitor is a
+// compile-time reference of this assembly, so there is no separate monitor DLL.
 //
 // Dispatch argument, LF-separated:
 //   <native utf-8 buffer pointer>
 //   <capacity>
 //   <init|update|close>
 //   <payload>
-// init payload is cpu, gpu, hdd, mbd (each 0 or 1) and the LibreHardwareMonitorLib.dll
-// path, separated by tabs. Dispatch writes one JSON object into the buffer and returns 0.
+// init payload is cpu, gpu, hdd, mbd (each 0 or 1), separated by tabs.
+// Dispatch writes one JSON object into the buffer and returns 0.
 
 using System.Globalization;
-using System.Reflection;
 using System.Runtime.InteropServices;
+using System.ServiceProcess;
 using System.Text;
+using LibreHardwareMonitor.Hardware;
 
 namespace TrafficMonitorBar.Hardware;
 
 public static class Bridge
 {
     private static readonly object Gate = new();
-    private static object computer;
-    private static string probeDir;
-    private static bool hooked;
+    private static Computer computer;
 
     public static int Dispatch(string arg)
     {
@@ -32,7 +31,6 @@ public static class Bridge
                 return 1;
             try
             {
-                EnsureHook();
                 string json;
                 if (command == "init")
                     json = Init(payload);
@@ -49,7 +47,7 @@ public static class Bridge
             }
             catch (Exception ex)
             {
-                try { return Write(ptr, cap, Error(Unwrap(ex).Message)); }
+                try { return Write(ptr, cap, Error(ex.Message)); }
                 catch { return 1; }
             }
         }
@@ -88,64 +86,61 @@ public static class Bridge
         return 0;
     }
 
-    private static void EnsureHook()
-    {
-        if (hooked)
-            return;
-        hooked = true;
-        AppDomain.CurrentDomain.AssemblyResolve += Resolve;
-    }
-
-    private static Assembly Resolve(object sender, ResolveEventArgs e)
-    {
-        string file = new AssemblyName(e.Name).Name + ".dll";
-        if (!string.IsNullOrEmpty(probeDir))
-        {
-            string candidate = Path.Combine(probeDir, file);
-            if (File.Exists(candidate))
-                return Assembly.LoadFrom(candidate);
-        }
-        string dir = Path.GetDirectoryName(typeof(Bridge).Assembly.Location);
-        if (string.IsNullOrEmpty(dir))
-            return null;
-        string local = Path.Combine(dir, file);
-        return File.Exists(local) ? Assembly.LoadFrom(local) : null;
-    }
-
     private static string Init(string payload)
     {
         CloseMonitor();
-        string[] parts = (payload ?? string.Empty).Split(['\t'], 5);
-        if (parts.Length < 5)
+        string[] parts = (payload ?? string.Empty).Split('\t');
+        if (parts.Length < 4)
             return Error("invalid init request");
-        string dllPath = parts[4];
+        EnsurePawnIo();
+        var monitor = new Computer
+        {
+            IsCpuEnabled = parts[0] == "1",
+            IsGpuEnabled = parts[1] == "1",
+            IsStorageEnabled = parts[2] == "1",
+            IsMotherboardEnabled = parts[3] == "1",
+        };
         try
         {
-            if (!File.Exists(dllPath))
-                return Error("LibreHardwareMonitorLib.dll not found");
-            probeDir = Path.GetDirectoryName(Path.GetFullPath(dllPath));
-            Assembly lhm = Assembly.LoadFrom(dllPath);
-            Type computerType = lhm.GetType("LibreHardwareMonitor.Hardware.Computer", true);
-            computer = Activator.CreateInstance(computerType);
-            SetProp(computer, "IsCpuEnabled", parts[0] == "1");
-            SetProp(computer, "IsGpuEnabled", parts[1] == "1");
-            SetProp(computer, "IsStorageEnabled", parts[2] == "1");
-            SetProp(computer, "IsMotherboardEnabled", parts[3] == "1");
-            try
-            {
-                computerType.GetMethod("Open", Type.EmptyTypes).Invoke(computer, null);
-            }
-            catch (Exception ex)
-            {
-                CloseMonitor();
-                return Error(Unwrap(ex).Message);
-            }
-            return "{}";
+            monitor.Open();
         }
         catch (Exception ex)
         {
-            CloseMonitor();
-            return Error(Unwrap(ex).Message);
+            try { monitor.Close(); } catch { }
+            return Error(ex.Message);
+        }
+        computer = monitor;
+        return "{}";
+    }
+
+    // LibreHardwareMonitor 0.9 reads CPU core temperature through the PawnIO
+    // driver. The service is installed as manual and does not start itself.
+    private static void EnsurePawnIo()
+    {
+        try
+        {
+            using (var service = new ServiceController("PawnIO"))
+            {
+                ServiceControllerStatus status = service.Status;
+                if (status == ServiceControllerStatus.StartPending)
+                {
+                    service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
+                    return;
+                }
+                if (status == ServiceControllerStatus.StopPending)
+                {
+                    service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(8));
+                    status = service.Status;
+                }
+                if (status == ServiceControllerStatus.Stopped)
+                {
+                    service.Start();
+                    service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
+                }
+            }
+        }
+        catch
+        {
         }
     }
 
@@ -153,7 +148,7 @@ public static class Bridge
     {
         if (computer == null)
             return;
-        try { computer.GetType().GetMethod("Close", Type.EmptyTypes).Invoke(computer, null); }
+        try { computer.Close(); }
         catch { }
         computer = null;
     }
@@ -163,116 +158,58 @@ public static class Bridge
         return "{\"error\":" + Quote(message) + "}";
     }
 
-    private static Exception Unwrap(Exception ex)
+    private static float SensorValue(ISensor sensor)
     {
-        while (ex is TargetInvocationException && ex.InnerException != null)
-            ex = ex.InnerException;
-        return ex;
-    }
-
-    private static void SetProp(object o, string name, bool value)
-    {
-        PropertyInfo p = o.GetType().GetProperty(name);
-        p?.SetValue(o, value, null);
-    }
-
-    private static object GetProp(object o, string name)
-    {
-        PropertyInfo p = o.GetType().GetProperty(name);
-        if (p == null)
-        {
-            foreach (Type itf in o.GetType().GetInterfaces())
-            {
-                p = itf.GetProperty(name);
-                if (p != null) break;
-            }
-        }
-        return p?.GetValue(o, null);
-    }
-
-    private static IEnumerable<object> Items(object list)
-    {
-        if (list is not System.Collections.IEnumerable e) yield break;
-        foreach (object o in e) yield return o;
-    }
-
-    private static string Str(object o)
-    {
-        return o == null ? string.Empty : o.ToString();
-    }
-
-    private static void Update(object hw)
-    {
-        MethodInfo m = hw.GetType().GetMethod("Update", Type.EmptyTypes);
-        if (m == null)
-        {
-            foreach (Type itf in hw.GetType().GetInterfaces())
-            {
-                m = itf.GetMethod("Update", Type.EmptyTypes);
-                if (m != null) break;
-            }
-        }
-        m?.Invoke(hw, null);
-        foreach (object sub in Items(GetProp(hw, "SubHardware")))
-            Update(sub);
-    }
-
-    private static float SensorValue(object sensor)
-    {
-        object v = GetProp(sensor, "Value");
-        if (v == null) return -1;
-        return Convert.ToSingle(v, CultureInfo.InvariantCulture);
-    }
-
-    private class Sensor
-    {
-        public string Type;
-        public string Name;
-        public float Value;
-    }
-
-    private static List<Sensor> Sensors(object hw)
-    {
-        var list = new List<Sensor>();
-        foreach (object s in Items(GetProp(hw, "Sensors")))
-        {
-            var item = new Sensor
-            {
-                Type = Str(GetProp(s, "SensorType")),
-                Name = Str(GetProp(s, "Name")),
-                Value = SensorValue(s)
-            };
-            list.Add(item);
-        }
-        return list;
+        return sensor.Value ?? -1f;
     }
 
     // COpenHardwareMonitor::GetHardwareTemperature
-    private static float HardwareTemperature(object hw)
+    private static float HardwareTemperature(IHardware hw)
     {
-        string type = Str(GetProp(hw, "HardwareType"));
-        string preferred = type == "Cpu" ? "Core Average" : (type.StartsWith("Gpu") ? "GPU Core" : null);
+        string preferred = hw.HardwareType == HardwareType.Cpu
+            ? "Core Average"
+            : (IsGpu(hw.HardwareType) ? "GPU Core" : null);
         var temps = new List<float>();
         float preferredValue = -1;
-        foreach (Sensor s in Sensors(hw))
+        foreach (ISensor sensor in hw.Sensors)
         {
-            if (s.Type != "Temperature" || s.Value < 0) continue;
-            temps.Add(s.Value);
-            if (preferred != null && s.Name == preferred) preferredValue = s.Value;
+            if (sensor.SensorType != SensorType.Temperature)
+                continue;
+            float value = SensorValue(sensor);
+            if (value < 0)
+                continue;
+            temps.Add(value);
+            if (preferred != null && sensor.Name == preferred)
+                preferredValue = value;
         }
-        if (preferredValue >= 0) return preferredValue;
+        if (preferredValue >= 0)
+            return preferredValue;
         if (temps.Count > 0)
         {
             float sum = 0;
-            foreach (float t in temps) sum += t;
+            foreach (float t in temps)
+                sum += t;
             return sum / temps.Count;
         }
-        foreach (object sub in Items(GetProp(hw, "SubHardware")))
+        foreach (IHardware sub in hw.SubHardware)
         {
             float t = HardwareTemperature(sub);
-            if (t >= 0) return t;
+            if (t >= 0)
+                return t;
         }
         return -1;
+    }
+
+    private static bool IsGpu(HardwareType type)
+    {
+        return type == HardwareType.GpuNvidia || type == HardwareType.GpuAmd || type == HardwareType.GpuIntel;
+    }
+
+    private static void Update(IHardware hw)
+    {
+        hw.Update();
+        foreach (IHardware sub in hw.SubHardware)
+            Update(sub);
     }
 
     private static void InsertUnique(Dictionary<string, float> map, string key, float value)
@@ -288,73 +225,90 @@ public static class Bridge
         if (computer == null)
             return Error("hardware monitor is not open");
 
-#pragma warning disable IDE0059 // Unnecessary assignment of a value
         float cpuTemp = -1, cpuFreq = -1, gpuTemp = -1, gpuUsage = -1, mbdTemp = -1;
-#pragma warning restore IDE0059 // Unnecessary assignment of a value
         float nvTemp = -1, amdTemp = -1, intelTemp = -1, nvUsage = -1, amdUsage = -1, intelUsage = -1;
         var cpuTemps = new Dictionary<string, float>();
         var hddTemps = new Dictionary<string, float>();
         var hddUsage = new Dictionary<string, float>();
 
-        foreach (object hw in Items(GetProp(computer, "Hardware")))
+        foreach (IHardware hw in computer.Hardware)
         {
             Update(hw);
-            string type = Str(GetProp(hw, "HardwareType"));
-            string name = Str(GetProp(hw, "Name"));
-            List<Sensor> sensors = Sensors(hw);
-            switch (type)
+            switch (hw.HardwareType)
             {
-                case "Cpu":
+                case HardwareType.Cpu:
                     if (cpuTemp < 0)
                     {
                         cpuTemps.Clear();
                         float sum = 0; int count = 0;
-                        foreach (Sensor s in sensors)
+                        foreach (ISensor sensor in hw.Sensors)
                         {
-                            if (s.Type != "Temperature" || s.Name.Contains("Distance to TjMax")) continue;
-                            cpuTemps[s.Name] = s.Value;
-                            if (s.Value > 0) { sum += s.Value; count++; }
+                            if (sensor.SensorType != SensorType.Temperature || sensor.Name.Contains("Distance to TjMax"))
+                                continue;
+                            float value = SensorValue(sensor);
+                            cpuTemps[sensor.Name] = value;
+                            if (value > 0) { sum += value; count++; }
                         }
-                        if (count > 0) cpuTemp = sum / count;
+                        if (count > 0)
+                            cpuTemp = sum / count;
                     }
                     if (cpuFreq < 0)
                     {
                         float sum = 0; int count = 0;
-                        foreach (Sensor s in sensors)
-                            if (s.Type == "Clock" && s.Name != "Bus Speed" && s.Value > 0) { sum += s.Value; count++; }
-                        if (count > 0) cpuFreq = sum / count / 1000f;
+                        foreach (ISensor sensor in hw.Sensors)
+                        {
+                            float value = SensorValue(sensor);
+                            if (sensor.SensorType == SensorType.Clock && sensor.Name != "Bus Speed" && value > 0)
+                            {
+                                sum += value;
+                                count++;
+                            }
+                        }
+                        if (count > 0)
+                            cpuFreq = sum / count / 1000f;
                     }
                     break;
 
-                case "GpuNvidia":
-                case "GpuAmd":
-                case "GpuIntel":
+                case HardwareType.GpuNvidia:
+                case HardwareType.GpuAmd:
+                case HardwareType.GpuIntel:
                     {
                         float t = HardwareTemperature(hw);
                         float u = -1, max = 0;
-                        foreach (Sensor s in sensors)
+                        foreach (ISensor sensor in hw.Sensors)
                         {
-                            if (s.Type != "Load") continue;
-                            if (s.Name == "GPU Core") { u = s.Value; break; }
-                            if (s.Value > max) max = s.Value;
+                            if (sensor.SensorType != SensorType.Load)
+                                continue;
+                            float value = SensorValue(sensor);
+                            if (sensor.Name == "GPU Core") { u = value; break; }
+                            if (value > max)
+                                max = value;
                         }
-                        if (u < 0) u = max;
-                        if (type == "GpuNvidia") { if (nvTemp < 0) nvTemp = t; if (nvUsage < 0) nvUsage = u; }
-                        else if (type == "GpuAmd") { if (amdTemp < 0) amdTemp = t; if (amdUsage < 0) amdUsage = u; }
+                        if (u < 0)
+                            u = max;
+                        if (hw.HardwareType == HardwareType.GpuNvidia) { if (nvTemp < 0) nvTemp = t; if (nvUsage < 0) nvUsage = u; }
+                        else if (hw.HardwareType == HardwareType.GpuAmd) { if (amdTemp < 0) amdTemp = t; if (amdUsage < 0) amdUsage = u; }
                         else { if (intelTemp < 0) intelTemp = t; if (intelUsage < 0) intelUsage = u; }
                         break;
                     }
-                case "Storage":
+                case HardwareType.Storage:
                     {
-                        InsertUnique(hddTemps, name, HardwareTemperature(hw));
+                        InsertUnique(hddTemps, hw.Name, HardwareTemperature(hw));
                         float u = -1;
-                        foreach (Sensor s in sensors)
-                            if (s.Type == "Load" && s.Name == "Total Activity") { u = s.Value; break; }
-                        InsertUnique(hddUsage, name, u);
+                        foreach (ISensor sensor in hw.Sensors)
+                        {
+                            if (sensor.SensorType == SensorType.Load && sensor.Name == "Total Activity")
+                            {
+                                u = SensorValue(sensor);
+                                break;
+                            }
+                        }
+                        InsertUnique(hddUsage, hw.Name, u);
                         break;
                     }
-                case "Motherboard":
-                    if (mbdTemp < 0) mbdTemp = HardwareTemperature(hw);
+                case HardwareType.Motherboard:
+                    if (mbdTemp < 0)
+                        mbdTemp = HardwareTemperature(hw);
                     break;
             }
         }
