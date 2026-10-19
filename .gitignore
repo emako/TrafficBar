@@ -1,4 +1,5 @@
 /target
+/Releases
 *.log
 .vs
 **/bin

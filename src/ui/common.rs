@@ -8,7 +8,7 @@ use std::sync::{Arc, OnceLock};
 use gpui::{
     AnyElement, AnyView, App, AppContext, Context, Entity, Focusable, Hsla, Image, ImageFormat, InteractiveElement,
     IntoElement, ParentElement, Render, Rgba, SharedString, StatefulInteractiveElement, Styled, Subscription, WeakEntity,
-    Window, WindowControlArea, div, img, prelude::FluentBuilder, px, rems, rgb,
+    Window, WindowControlArea, div, img, prelude::FluentBuilder, px, relative, rems, rgb,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::checkbox::Checkbox;
@@ -384,6 +384,11 @@ impl Render for Stepper {
                     Input::new(&self.input)
                         .appearance(false)
                         .small()
+                        // Input's small size still uses a 1.25rem line box, so the digits
+                        // (and the selection behind them) read larger than the text_sm labels.
+                        .text_xs()
+                        .line_height(relative(1.))
+                        .h(rems(1.25))
                         .pl(pad)
                         .pr(px(0.))
                         .disabled(self.disabled)
@@ -441,13 +446,13 @@ fn center_pad(field: gpui::Pixels, text_width: gpui::Pixels) -> gpui::Pixels {
     ((field - text_width) * 0.5).max(px(0.))
 }
 
-/// Width of `text` in the same font the small input uses (`text_sm`, 0.875rem).
+/// Width of `text` in the same font the stepper uses (`text_xs`, 0.75rem).
 fn text_width(text: &str, window: &Window) -> gpui::Pixels {
     if text.is_empty() {
         return px(0.);
     }
     let mut style = window.text_style();
-    style.font_size = rems(0.875).into();
+    style.font_size = rems(0.75).into();
     let font_size = style.font_size.to_pixels(window.rem_size());
     let run = style.to_run(text.len());
     window.text_system().shape_line(text.to_string().into(), font_size, &[run], None).width

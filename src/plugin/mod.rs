@@ -338,7 +338,7 @@ impl PluginHost {
         unsafe { tm_set_host(&CALLBACKS) };
 
         let mut host = PluginHost::empty();
-        let dir = crate::win::exe_dir().join("plugins");
+        let dir = crate::win::program_dir().join("plugins");
         let Ok(entries) = std::fs::read_dir(&dir) else {
             return host;
         };

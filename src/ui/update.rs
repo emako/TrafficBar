@@ -1,58 +1,67 @@
-﻿//! "检查更新" (`CUpdateHelper` + `CTrafficMonitorApp::CheckUpdate`), against this program's own
-//! release feed. The URLs can be overridden in config.ini (`[app] update_url_github/gitee`).
+﻿//! "检查更新" against this program's Velopack release feed on GitHub or Gitee.
+//! URLs can be overridden in config.ini (`[app] update_url_github/gitee`).
+
+use std::sync::atomic::{AtomicI16, Ordering};
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::time::Duration;
 
 use gpui::{App, AppContext, Context, InteractiveElement, IntoElement, ParentElement, Render, Styled, Window, div, px, size};
 use gpui_component::{scroll::ScrollableElement, v_flex};
+use velopack::sources::{GithubSource, UpdateSource};
+use velopack::{UpdateCheck, UpdateInfo, UpdateManager};
 
 use super::common::{button, footer, primary_button};
 use super::Slot;
 use crate::i18n::tr;
 use crate::state;
+use crate::update_source::GiteeSource;
 
-const DEFAULT_GITHUB: &str = "https://api.github.com/repos/emako/TrafficMonitorBar/releases/latest";
-const DEFAULT_GITEE: &str = "https://gitee.com/api/v5/repos/emako/TrafficMonitorBar/releases/latest";
+const DEFAULT_GITHUB: &str = "https://github.com/emako/TrafficMonitorBar";
+const DEFAULT_GITEE: &str = "https://gitee.com/emako/TrafficMonitorBar";
 
-#[derive(Clone)]
 enum Outcome {
     Failed,
+    NotInstalled,
     UpToDate,
-    Available { version: String, url: String, notes: String },
+    Available {
+        version: String,
+        notes: String,
+        manager: UpdateManager,
+        update: UpdateInfo,
+    },
+    Downloading {
+        version: String,
+        progress: i16,
+    },
+    DownloadFailed,
 }
 
-fn parse_version(v: &str) -> Vec<u64> {
-    v.trim()
-        .trim_start_matches(['v', 'V'])
-        .split(['.', '-'])
-        .map(|p| p.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap_or(0))
-        .collect()
-}
-
-fn newer(remote: &str, local: &str) -> bool {
-    let (mut r, mut l) = (parse_version(remote), parse_version(local));
-    let n = r.len().max(l.len());
-    r.resize(n, 0);
-    l.resize(n, 0);
-    r > l
-}
-
-fn fetch(url: &str) -> Outcome {
-    let ua = format!("TrafficMonitorBar/{}", env!("CARGO_PKG_VERSION"));
-    let Some(body) = crate::http::get(url, &ua) else {
-        return Outcome::Failed;
+fn check_once(source_kind: i32, url: String) -> Outcome {
+    let source: Box<dyn UpdateSource> = if source_kind == 1 {
+        match GiteeSource::new(&url) {
+            Ok(s) => Box::new(s),
+            Err(_) => return Outcome::Failed,
+        }
+    } else {
+        Box::new(GithubSource::new(&url, None, false))
     };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
-        return Outcome::Failed;
+    let Ok(manager) = UpdateManager::new_boxed(source, None, None) else {
+        return Outcome::NotInstalled;
     };
-    let Some(tag) = v.get("tag_name").and_then(|t| t.as_str()) else {
-        return Outcome::Failed;
-    };
-    if !newer(tag, env!("CARGO_PKG_VERSION")) {
-        return Outcome::UpToDate;
-    }
-    Outcome::Available {
-        version: tag.trim_start_matches(['v', 'V']).to_string(),
-        url: v.get("html_url").and_then(|u| u.as_str()).unwrap_or(url).to_string(),
-        notes: v.get("body").and_then(|b| b.as_str()).unwrap_or("").to_string(),
+    match manager.check_for_updates() {
+        Ok(UpdateCheck::UpdateAvailable(update)) => {
+            let version = update.TargetFullRelease.Version.clone();
+            let notes = update.TargetFullRelease.NotesMarkdown.clone();
+            Outcome::Available {
+                version,
+                notes,
+                manager,
+                update: *update,
+            }
+        }
+        Ok(UpdateCheck::NoUpdateAvailable) | Ok(UpdateCheck::RemoteIsEmpty) => Outcome::UpToDate,
+        Err(_) => Outcome::Failed,
     }
 }
 
@@ -61,16 +70,17 @@ pub fn check(silent: bool, cx: &mut App) {
     if already {
         return;
     }
-    let url = state::with(|s| {
+    // Read config on the UI thread; `state` is thread-local and empty on worker threads.
+    let (source_kind, url) = state::with(|s| {
         let ini = crate::config::ini::Ini::load(&s.settings.config_path());
         if s.settings.general.update_source == 1 {
-            ini.get_string("app", "update_url_gitee", DEFAULT_GITEE)
+            (1, ini.get_string("app", "update_url_gitee", DEFAULT_GITEE))
         } else {
-            ini.get_string("app", "update_url_github", DEFAULT_GITHUB)
+            (0, ini.get_string("app", "update_url_github", DEFAULT_GITHUB))
         }
     });
     cx.spawn(async move |cx| {
-        let outcome = cx.background_spawn(async move { fetch(&url) }).await;
+        let outcome = cx.background_spawn(async move { check_once(source_kind, url) }).await;
         let _ = cx.update(|cx| {
             state::with_mut(|s| s.checking_update = false);
             if silent && !matches!(outcome, Outcome::Available { .. }) {
@@ -78,7 +88,7 @@ pub fn check(silent: bool, cx: &mut App) {
             }
             super::close(Slot::Update, cx);
             super::open_window(Slot::Update, tr("IDS_VERSION_UPDATE"), size(px(480.), px(320.)), false, cx, move |_, _| UpdateView {
-                outcome: outcome.clone(),
+                outcome,
             });
         });
     })
@@ -89,31 +99,130 @@ pub struct UpdateView {
     outcome: Outcome,
 }
 
+impl UpdateView {
+    fn start_download(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Outcome::Available {
+            version,
+            manager,
+            update,
+            ..
+        } = std::mem::replace(
+            &mut self.outcome,
+            Outcome::Downloading {
+                version: String::new(),
+                progress: 0,
+            },
+        )
+        else {
+            return;
+        };
+        self.outcome = Outcome::Downloading {
+            version: version.clone(),
+            progress: 0,
+        };
+        cx.notify();
+
+        let progress = Arc::new(AtomicI16::new(0));
+        let progress_ui = progress.clone();
+        let (done_tx, done_rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let (tx, rx) = mpsc::channel();
+            let progress_thread = progress.clone();
+            std::thread::spawn(move || {
+                while let Ok(p) = rx.recv() {
+                    progress_thread.store(p, Ordering::Relaxed);
+                }
+            });
+            let result = manager.download_updates(&update, Some(tx));
+            let _ = done_tx.send((result, manager, update));
+        });
+
+        cx.spawn(async move |this, cx| {
+            loop {
+                let p = progress_ui.load(Ordering::Relaxed);
+                let _ = this.update(cx, |view, cx| {
+                    if let Outcome::Downloading { progress, .. } = &mut view.outcome {
+                        *progress = p;
+                        cx.notify();
+                    }
+                });
+                match done_rx.try_recv() {
+                    Ok((Ok(()), manager, update)) => {
+                        if let Err(err) = crate::app::apply_update_and_restart(&manager, &update) {
+                            log::error!("apply update failed: {err}");
+                            let _ = this.update(cx, |view, cx| {
+                                view.outcome = Outcome::DownloadFailed;
+                                cx.notify();
+                            });
+                        }
+                        return;
+                    }
+                    Ok((Err(err), _, _)) => {
+                        log::error!("download update failed: {err}");
+                        let _ = this.update(cx, |view, cx| {
+                            view.outcome = Outcome::DownloadFailed;
+                            cx.notify();
+                        });
+                        return;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {}
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        let _ = this.update(cx, |view, cx| {
+                            view.outcome = Outcome::DownloadFailed;
+                            cx.notify();
+                        });
+                        return;
+                    }
+                }
+                cx.background_spawn(async { std::thread::sleep(Duration::from_millis(200)) }).await;
+            }
+        })
+        .detach();
+        let _ = window;
+    }
+}
+
 impl Render for UpdateView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (text, url) = match &self.outcome {
-            Outcome::Failed => (tr("IDS_CHECK_UPDATE_FAILD"), None),
+        let (text, can_install) = match &self.outcome {
+            Outcome::Failed => (tr("IDS_CHECK_UPDATE_FAILD"), false),
+            Outcome::NotInstalled => (tr("BAR_UPDATE_NOT_INSTALLED"), false),
             Outcome::UpToDate => (
-                format!("{}\n{}{}", tr("IDS_ALREADY_UPDATED"), tr("BAR_CURRENT_VERSION"), env!("CARGO_PKG_VERSION")),
-                None,
+                format!(
+                    "{}\n{}{}",
+                    tr("IDS_ALREADY_UPDATED"),
+                    tr("BAR_CURRENT_VERSION"),
+                    env!("CARGO_PKG_VERSION")
+                ),
+                false,
             ),
-            Outcome::Available { version, url, notes } => {
+            Outcome::Available { version, notes, .. } => {
                 let text = if notes.trim().is_empty() {
                     tr("IDS_UPDATE_AVLIABLE").replace("%s", version)
                 } else {
-                    tr("IDS_UPDATE_AVLIABLE2").replacen("%s", version, 1).replacen("%s", notes.trim(), 1)
+                    tr("IDS_UPDATE_AVLIABLE2")
+                        .replacen("%s", version, 1)
+                        .replacen("%s", notes.trim(), 1)
                 };
-                (text.replace("\r\n", "\n"), Some(url.clone()))
+                (text.replace("\r\n", "\n"), true)
             }
+            Outcome::Downloading { version, progress } => (
+                tr("BAR_UPDATE_DOWNLOADING")
+                    .replacen("%s", version, 1)
+                    .replacen("%s", &progress.to_string(), 1),
+                false,
+            ),
+            Outcome::DownloadFailed => (tr("BAR_UPDATE_DOWNLOAD_FAILED"), false),
         };
         let mut buttons = Vec::new();
-        if let Some(url) = url {
-            buttons.push(primary_button("update-go", tr("BAR_DOWNLOAD"), move |w, _| {
-                crate::win::shell_open(&url);
-                w.remove_window();
+        if can_install {
+            let entity = cx.entity().downgrade();
+            buttons.push(primary_button("update-go", tr("BAR_DOWNLOAD"), move |w, cx| {
+                let _ = entity.update(cx, |view, cx| view.start_download(w, cx));
             }));
         }
-        buttons.push(button("update-close", tr("TXT_CLOSE"), false, |w, _| w.remove_window()));
+        let downloading = matches!(self.outcome, Outcome::Downloading { .. });
+        buttons.push(button("update-close", tr("TXT_CLOSE"), downloading, |w, _| w.remove_window()));
         v_flex()
             .size_full()
             .child(
@@ -126,17 +235,5 @@ impl Render for UpdateView {
                     .children(text.split('\n').map(|l| div().text_sm().child(l.to_string()))),
             )
             .child(footer(buttons, cx))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::newer;
-
-    #[test]
-    fn version_compare() {
-        assert!(newer("v0.2.0", "0.1.9"));
-        assert!(!newer("0.1.0", "0.1.0"));
-        assert!(newer("1.0", "0.9.9"));
     }
 }

@@ -15,7 +15,28 @@
 cargo build --release
 ```
 
-`build.rs` 会用 .NET Framework 的 `csc.exe` 编译进程内硬件监控库 `TrafficMonitorBar.Hardware.dll`，输出到 `target\<profile>\`。它的角色与原版 `OpenHardwareMonitorApi.dll` 相同：主程序在进程内加载它，再调用同目录的 `LibreHardwareMonitorLib.dll`。
+`build.rs` 会用 `dotnet` 编译进程内硬件监控库 `TrafficMonitorBar.Hardware.dll`，输出到 `target\<profile>\`。LibreHardwareMonitor 已嵌入该 DLL；主程序在进程内加载它。
+
+## 安装包
+
+需要 [.NET SDK 8+](https://dotnet.microsoft.com/download)（用于全局工具 `vpk`）。在仓库根目录执行：
+
+```powershell
+.\pack.ps1
+```
+
+脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficMonitorBar.exe` 与 `TrafficMonitorBar.Hardware.dll` 打成安装包，输出到 `Releases\`：
+
+| 文件 | 用途 |
+| --- | --- |
+| `TrafficMonitorBar-win-Setup.exe` | 一键安装（当前用户，`%LocalAppData%\TrafficMonitorBar`） |
+| `TrafficMonitorBar-win.msi` | MSI，当前用户安装 |
+| `releases.win.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源 |
+| `TrafficMonitorBar-win-Portable.zip` | 可选，不经安装直接解压运行 |
+
+发布到 GitHub / Gitee Release 时请附上上述安装包与更新源文件。安装包目前未代码签名，SmartScreen 可能拦截。
+
+`packId` 固定为 `TrafficMonitorBar`，请勿更改，否则已安装用户无法收到后续更新。
 
 ## 温度监控
 
@@ -26,11 +47,11 @@ cargo build --release
 
 ## 插件
 
-兼容原版插件（放在程序目录的 `plugins` 文件夹）。插件项目只显示插件提供的标签和数值文本，不调用插件自绘（`DrawItem` / `DrawItemEx`）；插件的鼠标、键盘事件、命令和选项对话框照常转发。
+兼容原版插件（放在程序目录的 `plugins` 文件夹）。经 Velopack 安装后，插件目录在安装根目录（`Update.exe` 旁），更新不会清掉已安装的插件。插件项目只显示插件提供的标签和数值文本，不调用插件自绘（`DrawItem` / `DrawItemEx`）；插件的鼠标、键盘事件、命令和选项对话框照常转发。
 
 ## 数据和配置
 
-默认保存在 `%AppData%\TrafficMonitorBar`（`config.ini`、`history_traffic.dat`）。在程序目录放置 `global_cfg.ini` 并设置 `portable_mode = true` 可改为保存到程序目录。
+默认保存在 `%AppData%\TrafficMonitorBar`（`config.ini`、`history_traffic.dat`）。在程序目录放置 `global_cfg.ini` 并设置 `portable_mode = true` 可改为保存到程序目录（Velopack 安装下也是安装根目录，更新不会覆盖）。
 
 ## 图标
 

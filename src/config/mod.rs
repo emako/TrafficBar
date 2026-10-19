@@ -420,20 +420,20 @@ pub fn transparent_color_convert(color: &mut u32) {
 
 /// Resolves where config.ini / history_traffic.dat live (`LoadGlobalConfig`).
 pub fn resolve_config_dir() -> (PathBuf, bool, bool) {
-    let exe_dir = win::exe_dir();
-    let global = Ini::load(&exe_dir.join("global_cfg.ini"));
+    let program_dir = win::program_dir();
+    let global = Ini::load(&program_dir.join("global_cfg.ini"));
     let mut portable = global.get_bool("config", "portable_mode", false);
-    let writable = is_dir_writable(&exe_dir);
+    let writable = is_dir_writable(&program_dir);
     if !writable {
         portable = false;
     }
-    let dir = if portable { exe_dir } else { win::appdata_dir() };
+    let dir = if portable { program_dir } else { win::appdata_dir() };
     let _ = std::fs::create_dir_all(&dir);
     (dir, portable, writable)
 }
 
 pub fn save_global_config(portable: bool) -> bool {
-    let path = win::exe_dir().join("global_cfg.ini");
+    let path = win::program_dir().join("global_cfg.ini");
     let mut ini = Ini::load(&path);
     ini.set_bool("config", "portable_mode", portable);
     ini.save().is_ok()

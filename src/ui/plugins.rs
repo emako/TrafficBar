@@ -77,7 +77,7 @@ impl Render for PluginManagerView {
             .map(|p| disabled.iter().any(|d| d.eq_ignore_ascii_case(&p.file_name)))
             .unwrap_or(false);
         let file_name = sel_plugin.as_ref().map(|p| p.file_name.clone()).unwrap_or_default();
-        let plugin_dir = crate::win::exe_dir().join("plugins");
+        let plugin_dir = crate::win::program_dir().join("plugins");
         let hwnd = state::with(|s| s.main_hwnd);
         v_flex()
             .size_full()

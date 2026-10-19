@@ -251,6 +251,15 @@ pub fn exe_dir() -> PathBuf {
     exe_path().parent().map(|p| p.to_path_buf()).unwrap_or_default()
 }
 
+/// Directory for plugins and `global_cfg.ini`. Under a Velopack install this is the pack root
+/// (sibling of `current`), so updates that replace `current` leave those files alone.
+pub fn program_dir() -> PathBuf {
+    use velopack::locator::{LocationContext, VelopackLocator};
+    VelopackLocator::try_from(LocationContext::FromCurrentExe)
+        .map(|loc| loc.get_root_dir())
+        .unwrap_or_else(|_| exe_dir())
+}
+
 pub fn appdata_dir() -> PathBuf {
     std::env::var_os("APPDATA")
         .map(PathBuf::from)

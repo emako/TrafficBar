@@ -7,8 +7,10 @@ use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use futures::channel::mpsc::UnboundedSender;
+use velopack::{UpdateInfo, UpdateManager};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::Threading::{GetCurrentProcess, TerminateProcess};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{PCWSTR, w};
 
@@ -701,6 +703,26 @@ pub fn exit() {
         let _ = KillTimer(Some(main_hwnd()), TIMER_MAIN);
     }
     send_ui(UiCommand::Quit);
+}
+
+/// Saves state, starts Velopack's updater, then kills this process without running
+/// `DLL_PROCESS_DETACH` (some GPU drivers hang there longer than the updater will wait).
+pub fn apply_update_and_restart(manager: &UpdateManager, update: &UpdateInfo) -> Result<(), String> {
+    state::with(|s| {
+        s.save_settings();
+    });
+    shutdown();
+    unsafe {
+        let _ = KillTimer(Some(main_hwnd()), TIMER_TASKBAR);
+        let _ = KillTimer(Some(main_hwnd()), TIMER_MAIN);
+    }
+    manager
+        .wait_exit_then_apply_updates(update, false, true, Vec::<String>::new())
+        .map_err(|e| e.to_string())?;
+    unsafe {
+        let _ = TerminateProcess(GetCurrentProcess(), 0);
+    }
+    Ok(())
 }
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";

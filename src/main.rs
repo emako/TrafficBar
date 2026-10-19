@@ -12,6 +12,7 @@ mod state;
 mod taskbar;
 mod tray;
 mod ui;
+mod update_source;
 mod win;
 
 use std::io::Write;
@@ -92,6 +93,9 @@ fn single_instance(restarted: bool) -> Option<HANDLE> {
 }
 
 fn main() {
+    // Must run before the single-instance mutex: install/update hooks start this exe and exit.
+    velopack::VelopackApp::build().run();
+
     let restarted = std::env::args().any(|a| a == "--restarted");
     let Some(_instance) = single_instance(restarted) else {
         return;
