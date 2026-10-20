@@ -3,7 +3,7 @@ name = "traffic-bar"
 version = "1.0.0"
 edition = "2024"
 description = "TrafficMonitor taskbar window rewritten with Rust + GPUI"
-license = "MIT"
+license-file = "LICENSE"
 build = "build.rs"
 default-run = "TrafficBar"
 

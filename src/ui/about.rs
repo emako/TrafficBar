@@ -74,7 +74,7 @@ impl Render for AboutView {
                     .child(link(
                         "about-license",
                         tr("TXT_ABOUT_LICENSE"),
-                        "https://github.com/zhongyang219/TrafficMonitor/blob/master/LICENSE",
+                        "https://github.com/emako/TrafficBar/blob/master/LICENSE",
                     ))
                     .child(div().h(px(8.)))
                     .child(muted(tr("BAR_PLUGIN_TEXT_ONLY"), cx))

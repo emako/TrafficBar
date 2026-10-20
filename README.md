@@ -1,5 +1,10 @@
 # TrafficBar
 
+[![Badge](https://img.shields.io/badge/link-996.icu-%23FF4D5B.svg?style=flat-square)](https://996.icu/#/en_US)
+[![LICENSE](https://img.shields.io/badge/license-Anti%20996-blue.svg?style=flat-square)](https://github.com/996icu/996.ICU/blob/master/LICENSE)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/emako/TrafficBar/main.yml?branch=master&label=Release%20CI&logo=github&style=flat-square)](https://github.com/emako/TrafficBar/actions?query=workflow:"Release+CI")
+[![GitHub release](https://img.shields.io/github/release/emako/TrafficBar.svg?style=flat-square)](https://github.com/emako/TrafficBar/releases/latest)
+
 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) 的任务栏窗口，用 Rust + GPUI 重写：同样常驻任务栏，内存占用比原版低得多。此外支持深色模式、去掉桌面悬浮窗，并可在 Windows 11 开启效率模式进一步压低 CPU 占用。
 
 - 任务栏窗口嵌入 Windows 系统任务栏 Direct2D 高性能绘制。
