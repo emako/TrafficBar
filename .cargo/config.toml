@@ -1,6 +1,6 @@
 [alias]
-# cargo setup → src/bin/setup.rs → setup.ps1
-setup = "run --bin setup -q --"
+# cargo setup → setup.ps1 (pass-through args, e.g. cargo setup -- -Target arm64ec-pc-windows-msvc)
+setup = "!powershell -NoProfile -ExecutionPolicy Bypass -File ./setup.ps1"
 
 [source.crates-io]
 replace-with = "rsproxy-sparse"

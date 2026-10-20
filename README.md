@@ -9,10 +9,20 @@
 
 ## 构建
 
-需要 MSVC 工具链（Visual Studio 生成工具，含 Windows SDK）、Rust stable（`x86_64-pc-windows-msvc`）、[.NET SDK 10+](https://dotnet.microsoft.com/download)，以及 [.NET Framework 4.x 开发人员包](https://dotnet.microsoft.com/download/dotnet-framework)（提供 `metahost.h` / `mscoree.h`；运行时仍用系统自带的 .NET Framework 4）。
+需要 MSVC 工具链（Visual Studio 生成工具，含 Windows SDK）、Rust stable、[.NET SDK 10+](https://dotnet.microsoft.com/download)，以及 [.NET Framework 4.x 开发人员包](https://dotnet.microsoft.com/download/dotnet-framework)（提供 `metahost.h` / `mscoree.h`；运行时仍用系统自带的 .NET Framework 4）。
+
+支持的 Rust target：
+
+| Target | 说明 |
+| --- | --- |
+| `x86_64-pc-windows-msvc` | 常规 x64（默认宿主） |
+| `arm64ec-pc-windows-msvc` | Windows on Arm（ARM64EC，可加载原版 x64 插件）；需在 Visual Studio Installer 勾选 **MSVC C++ ARM64/ARM64EC 生成工具**（`Microsoft.VisualStudio.Component.VC.Tools.ARM64`，提供 `Hostx64\arm64\cl.exe`）与 Windows 11 SDK |
 
 ```powershell
 cargo build --release
+# 或交叉编译 WoA：
+rustup target add arm64ec-pc-windows-msvc
+cargo build --release --target arm64ec-pc-windows-msvc
 ```
 
 ## 安装包
@@ -21,9 +31,11 @@ cargo build --release
 
 ```powershell
 cargo setup
+# WoA / ARM64EC：
+cargo setup -- -Target arm64ec-pc-windows-msvc
 ```
 
-（等价于 `.\setup.ps1`。）
+（等价于 `.\setup.ps1` / `.\setup.ps1 -Target …`。）
 
 脚本会先 release 编译，再用 [Velopack](https://docs.velopack.io/) 把 `TrafficBar.exe` 打成安装包，输出到 `target\publish\`：
 
@@ -31,11 +43,12 @@ cargo setup
 
 | 文件 | 用途 |
 | --- | --- |
-| `TrafficBar-1.0.0-x64.exe` | 一键安装（当前用户，`%LocalAppData%\TrafficBar`） |
-| `TrafficBar-1.0.0-x64.msi` | MSI，当前用户安装 |
-| `TrafficBar-1.0.0-x64.zip` | Velopack 便携包，解压即用（含 `Update.exe`，可检查更新） |
-| `TrafficBar-1.0.0-single-x64.zip` | 单文件绿色版，仅 `TrafficBar.exe`（可开启便携模式） |
-| `releases.win.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源 |
+| `TrafficBar-1.0.0-x64.exe` | x64 一键安装（当前用户，`%LocalAppData%\TrafficBar`） |
+| `TrafficBar-1.0.0-x64.msi` | x64 MSI，当前用户安装 |
+| `TrafficBar-1.0.0-x64.zip` | x64 Velopack 便携包（含 `Update.exe`） |
+| `TrafficBar-1.0.0-single-x64.zip` | x64 单文件绿色版，仅 `TrafficBar.exe` |
+| `TrafficBar-1.0.0-arm64ec.exe` / `.msi` / `.zip` / `single-arm64ec.zip` | 同上，ARM64EC（Windows 11 on Arm） |
+| `releases.win.json`、`releases.win-arm64ec.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源（按架构分 channel） |
 
 发布到 GitHub / Gitee Release 时请附上上述安装包与更新源文件。安装包目前未代码签名，SmartScreen 可能拦截。
 
@@ -43,7 +56,7 @@ cargo setup
 
 ## 温度监控
 
-温度监控依赖 LibreHardwareMonitor，需要管理员权限。在“选项设置 > 常规设置 > 硬件监控”中勾选要监控的硬件。
+温度监控依赖 [LibreHardwareMonitorLib](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)，需要管理员权限。在“选项设置 > 常规设置 > 硬件监控”中勾选要监控的硬件。
 
 未以管理员身份运行时，温度相关的项目和选项后面会显示红色的 `!`，任务栏上对应的数值也显示 `!`；可以在右键菜单中选择“以管理员身份重新启动”。
 
@@ -53,7 +66,9 @@ cargo setup
 
 ## 插件
 
-兼容原版插件。直接运行时，dll 放在程序目录的 `plugins` 文件夹。用安装包装上之后改放到 `%AppData%\TrafficBar\plugins`：安装包重装会删掉整个 `%LocalAppData%\TrafficBar`（含 `Update.exe` 旁的文件），放在 Roaming 里才不会丢。程序内更新本来就不会动这个目录。启动时会把安装目录、`current`、`app-*` 以及安装包重装时留下的旧目录里的插件搬过来。插件项目只显示插件提供的标签和数值文本，不调用插件自绘（`DrawItem` / `DrawItemEx`）；插件的鼠标、键盘事件、命令和选项对话框照常转发。
+兼容原版 **x64** C++ 插件。直接运行时，dll 放在程序目录的 `plugins` 文件夹。用安装包装上之后改放到 `%AppData%\TrafficBar\plugins`：安装包重装会删掉整个 `%LocalAppData%\TrafficBar`（含 `Update.exe` 旁的文件），放在 Roaming 里才不会丢。程序内更新本来就不会动这个目录。启动时会把安装目录、`current`、`app-*` 以及安装包重装时留下的旧目录里的插件搬过来。插件项目只显示插件提供的标签和数值文本，不调用插件自绘（`DrawItem` / `DrawItemEx`）；插件的鼠标、键盘事件、命令和选项对话框照常转发。
+
+Windows on Arm 请使用 **ARM64EC** 安装包（不是纯 ARM64）：主程序为 ARM64EC，可在同一进程内加载现有 x64 插件 DLL。
 
 ## 数据和配置
 

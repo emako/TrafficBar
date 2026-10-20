@@ -1,8 +1,8 @@
 <Solution>
   <Configurations>
-    <Platform Name="x64" />
+    <Platform Name="AnyCPU" />
   </Configurations>
   <Project Path="HardwareBridge.csproj">
-    <Platform Project="x64" />
+    <Platform Project="AnyCPU" />
   </Project>
 </Solution>

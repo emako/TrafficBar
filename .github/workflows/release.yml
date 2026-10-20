@@ -8,8 +8,14 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  pack:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - arm64ec-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,12 +23,19 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+
+      # ARM64EC uses the ARM64 MSVC toolset (cl /arm64EC). x64 keeps the default x64 tools.
+      - name: Setup MSVC (ARM64 cross tools)
+        if: matrix.target == 'arm64ec-pc-windows-msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64_arm64
 
       - name: Pack
         shell: pwsh
@@ -31,7 +44,38 @@ jobs:
           if ($env:PATH -notlike "*$tools*") {
             $env:PATH = "$tools;$env:PATH"
           }
-          .\setup.ps1
+          .\setup.ps1 -Target ${{ matrix.target }}
+
+      - name: Upload publish artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-${{ matrix.target }}
+          path: target/publish/*
+          if-no-files-found: error
+
+  release:
+    needs: pack
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all publish artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: target/publish-merged
+          pattern: publish-*
+          merge-multiple: true
+
+      - name: Stage publish dir
+        shell: pwsh
+        run: |
+          $dest = "target\publish"
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Get-ChildItem -LiteralPath "target\publish-merged" -File | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $dest $_.Name) -Force
+          }
+          Get-ChildItem -LiteralPath $dest -File | ForEach-Object { Write-Host $_.Name }
 
       - name: Resolve version
         id: meta
@@ -66,7 +110,6 @@ jobs:
           "release_name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Get-ChildItem -LiteralPath "target\publish" -File | ForEach-Object { Write-Host $_.Name }
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
