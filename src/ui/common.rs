@@ -652,9 +652,8 @@ pub fn kv_row(
         .child(div().flex_1().min_w_0().text_sm().child(value.into()))
 }
 
-/// WinUI's scrollbar thumb is a narrow pill. gpui-component paints an 8px thumb
-/// on a 16px track, which reads much heavier beside that bar.
-const THIN_THUMB_WIDTH: f32 = 4.;
+/// Narrow pill. gpui-component paints an 8px thumb on a 16px track.
+const THIN_THUMB_WIDTH: f32 = 6.;
 const THIN_THUMB_INSET: f32 = 2.;
 const THIN_THUMB_MIN: f32 = 32.;
 const THIN_THUMB_HIT: f32 = 12.;
