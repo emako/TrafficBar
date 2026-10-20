@@ -98,6 +98,11 @@ fn single_instance(restarted: bool) -> Option<HANDLE> {
 }
 
 fn main() {
+    // Setup.exe repair renames `%LocalAppData%\TrafficBar` and deletes that copy after
+    // `--veloapp-install`. Rescue plugins before `VelopackApp::run` handles the hook and exits.
+    let (early_config, _, _) = config::resolve_config_dir();
+    plugin::preserve_installed_plugins(&early_config);
+
     // Must run before the single-instance mutex: install/update hooks start this exe and exit.
     velopack::VelopackApp::build().run();
 

@@ -1,5 +1,5 @@
 use std::ffi::c_void;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, RECT};
 use windows::Win32::Globalization::{CP_ACP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
@@ -321,13 +321,50 @@ pub fn exe_dir() -> PathBuf {
         .unwrap_or_default()
 }
 
-/// Directory for plugins and `global_cfg.ini`. Under a Velopack install this is the pack root
-/// (sibling of `current`), so updates that replace `current` leave those files alone.
-pub fn program_dir() -> PathBuf {
+/// Velopack install root (the directory that contains `Update.exe`), when this process is an
+/// installed copy. Portable zip and `cargo` builds return `None`.
+///
+/// The locator only recognizes `...\current\TrafficBar.exe`. After a junction is resolved the
+/// path is `...\app-<version>\TrafficBar.exe`, so also walk up from the exe until `Update.exe`
+/// appears.
+pub fn install_root() -> Option<PathBuf> {
     use velopack::locator::{LocationContext, VelopackLocator};
-    VelopackLocator::try_from(LocationContext::FromCurrentExe)
-        .map(|loc| loc.get_root_dir())
-        .unwrap_or_else(|_| exe_dir())
+    if let Ok(loc) = VelopackLocator::try_from(LocationContext::FromCurrentExe) {
+        let root = loc.get_root_dir();
+        if root.join("Update.exe").is_file() {
+            return Some(root);
+        }
+    }
+    let mut dir = exe_dir();
+    for _ in 0..5 {
+        if dir.join("Update.exe").is_file() && dir.join("current").is_dir() {
+            return Some(dir);
+        }
+        dir = dir.parent().map(Path::to_path_buf)?;
+    }
+    None
+}
+
+/// Directory for `global_cfg.ini`. Under a Velopack install this is the pack root (sibling of
+/// `current`). In-app updates replace `current` and leave this directory alone. Setup.exe repair
+/// does not: it renames the whole root and deletes it.
+pub fn program_dir() -> PathBuf {
+    install_root().unwrap_or_else(exe_dir)
+}
+
+/// Where plugin dlls are loaded from.
+///
+/// An installed copy keeps them in `%AppData%\TrafficBar\plugins`. Setup.exe repair and uninstall
+/// delete `%LocalAppData%\TrafficBar` (everything beside `Update.exe`, including a `plugins`
+/// folder stored there). Roaming AppData is outside that tree.
+///
+/// A portable zip has no `Update.exe` and still uses `plugins` next to the exe.
+pub fn plugin_dir() -> PathBuf {
+    if install_root().is_some() {
+        appdata_dir().join("plugins")
+    } else {
+        exe_dir().join("plugins")
+    }
 }
 
 pub fn appdata_dir() -> PathBuf {

@@ -48,7 +48,7 @@ cargo build --release
 
 ## 插件
 
-兼容原版插件（放在程序目录的 `plugins` 文件夹）。经 Velopack 安装后，插件目录在安装根目录（`Update.exe` 旁），更新不会清掉已安装的插件。插件项目只显示插件提供的标签和数值文本，不调用插件自绘（`DrawItem` / `DrawItemEx`）；插件的鼠标、键盘事件、命令和选项对话框照常转发。
+兼容原版插件。直接运行时，dll 放在程序目录的 `plugins` 文件夹。用安装包装上之后改放到 `%AppData%\TrafficBar\plugins`：安装包重装会删掉整个 `%LocalAppData%\TrafficBar`（含 `Update.exe` 旁的文件），放在 Roaming 里才不会丢。程序内更新本来就不会动这个目录。启动时会把安装目录、`current`、`app-*` 以及安装包重装时留下的旧目录里的插件搬过来。插件项目只显示插件提供的标签和数值文本，不调用插件自绘（`DrawItem` / `DrawItemEx`）；插件的鼠标、键盘事件、命令和选项对话框照常转发。
 
 ## 数据和配置
 

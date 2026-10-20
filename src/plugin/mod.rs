@@ -3,7 +3,8 @@
 //! the plugin's own drawing callbacks (`DrawItem` / `DrawItemEx`) are never invoked.
 
 use std::ffi::c_void;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 use std::sync::{Mutex, OnceLock, RwLock};
 
 use windows::Win32::Foundation::{GetLastError, HMODULE};
@@ -353,7 +354,7 @@ impl PluginHost {
         unsafe { tm_set_host(&CALLBACKS) };
 
         let mut host = PluginHost::empty();
-        let dir = crate::win::program_dir().join("plugins");
+        let dir = crate::win::plugin_dir();
         let Ok(entries) = std::fs::read_dir(&dir) else {
             return host;
         };
@@ -643,3 +644,268 @@ impl PluginHost {
 
 unsafe impl Send for PluginHost {}
 unsafe impl Sync for PluginHost {}
+
+/// Copies plugin files out of a Velopack install tree into `plugin_dir`.
+///
+/// In-app updates only replace `current`, so a `plugins` folder next to `Update.exe` survives
+/// those. Setup.exe repair does not: it renames the install root to `TrafficBar.<random>` and
+/// deletes it after `--veloapp-install`. This runs before that hook exits, and again on every
+/// launch, so an older copy is picked up from the live root or from that renamed folder.
+pub fn preserve_installed_plugins(config_dir: &Path) {
+    let Some(root) = crate::win::install_root() else {
+        return;
+    };
+    let dest = crate::win::plugin_dir();
+    let config_plugins = config_dir.join("plugins");
+    let copied = absorb_legacy_plugins(&root, &dest, &config_plugins);
+    if copied > 0 {
+        log::warn!(
+            "Copied {copied} plugin file(s) to {} so a reinstall does not delete them",
+            dest.display()
+        );
+    }
+}
+
+fn absorb_legacy_plugins(root: &Path, dest: &Path, config_plugins: &Path) -> usize {
+    let mut copied = 0;
+    for src in plugin_dirs_under(root) {
+        // Portable mode stores plugin settings in this same folder. Leave those ini files put;
+        // only dlls (and other sibling files) are duplicated into the durable directory.
+        let protected = same_dir(&src, config_plugins);
+        copied += import_plugin_tree(&src, dest, protected, !protected);
+    }
+    // Setup.exe renames the previous install to `<root>.<random>` and deletes it only after the
+    // install hook returns success. Copy out of that folder, but leave it intact so a failed
+    // install can still roll back.
+    for rollback in rollback_dirs(root) {
+        for src in plugin_dirs_under(&rollback) {
+            copied += import_plugin_tree(&src, dest, false, false);
+        }
+    }
+    copied
+}
+
+/// `plugins` next to `Update.exe`, plus copies left under `current` or `app-*` when the install
+/// root was not detected and dlls were stored beside the exe.
+fn plugin_dirs_under(base: &Path) -> Vec<PathBuf> {
+    let mut dirs = vec![base.join("plugins"), base.join("current").join("plugins")];
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return dirs;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with("app-") && entry.path().is_dir() {
+            dirs.push(entry.path().join("plugins"));
+        }
+    }
+    dirs
+}
+
+fn rollback_dirs(root: &Path) -> Vec<PathBuf> {
+    let Some(parent) = root.parent() else {
+        return Vec::new();
+    };
+    let Some(root_name) = root.file_name() else {
+        return Vec::new();
+    };
+    let root_name = root_name.to_string_lossy();
+    let prefix = format!("{root_name}.");
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with(&prefix))
+                && path.join("Update.exe").is_file()
+        })
+        .collect()
+}
+
+/// Copies files from `src` into `dest`. When `protected` is set, `*.ini` stays in `src` (plugin
+/// settings live there). When `delete_source` is set, a file that landed in `dest` is removed
+/// from `src`, so a later install wipe cannot be the only copy and cannot restore a plugin the
+/// user already removed from `dest`.
+fn import_plugin_tree(src: &Path, dest: &Path, protected: bool, delete_source: bool) -> usize {
+    if !src.is_dir() || same_dir(src, dest) {
+        return 0;
+    }
+    if std::fs::create_dir_all(dest).is_err() {
+        return 0;
+    }
+    import_dir(src, dest, protected, delete_source, 0)
+}
+
+fn import_dir(src: &Path, dest: &Path, protected: bool, delete_source: bool, depth: u32) -> usize {
+    if depth > 8 {
+        return 0;
+    }
+    let Ok(entries) = std::fs::read_dir(src) else {
+        return 0;
+    };
+    let mut copied = 0;
+    for entry in entries.flatten() {
+        let from = entry.path();
+        let to = dest.join(entry.file_name());
+        if from.is_dir() {
+            if std::fs::create_dir_all(&to).is_err() {
+                continue;
+            }
+            copied += import_dir(&from, &to, protected, delete_source, depth + 1);
+            if delete_source {
+                let _ = std::fs::remove_dir(&from);
+            }
+            continue;
+        }
+        if !from.is_file() || (protected && is_ini(&from)) {
+            continue;
+        }
+        let ready = if dest_needs_file(&from, &to) {
+            let ok = std::fs::copy(&from, &to).is_ok();
+            if ok {
+                copied += 1;
+            }
+            ok
+        } else {
+            to.is_file()
+        };
+        if delete_source && ready {
+            let _ = std::fs::remove_file(&from);
+        }
+    }
+    copied
+}
+
+fn is_ini(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
+}
+
+fn dest_needs_file(from: &Path, to: &Path) -> bool {
+    if !to.exists() {
+        return true;
+    }
+    let Ok(src_time) = modified(from) else {
+        return false;
+    };
+    match modified(to) {
+        Ok(dst_time) => src_time > dst_time,
+        Err(_) => true,
+    }
+}
+
+fn modified(path: &Path) -> std::io::Result<SystemTime> {
+    path.metadata().and_then(|meta| meta.modified())
+}
+
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn touch(path: &Path, body: &[u8]) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, body).unwrap();
+    }
+
+    #[test]
+    fn legacy_dirs_include_version_folders_and_setup_rollback() {
+        let root_parent = std::env::temp_dir().join(format!(
+            "trafficbar-plugins-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root_parent);
+        let root = root_parent.join("TrafficBar");
+        touch(&root.join("Update.exe"), b"");
+        touch(&root.join("plugins").join("live.dll"), b"live");
+        touch(&root.join("current").join("plugins").join("cur.dll"), b"cur");
+        touch(
+            &root.join("app-1.0.0").join("plugins").join("old.dll"),
+            b"old",
+        );
+        let rollback = root_parent.join("TrafficBar.abcDEF1234567890");
+        touch(&rollback.join("Update.exe"), b"");
+        touch(&rollback.join("plugins").join("saved.dll"), b"saved");
+        // Not a Velopack rollback: no Update.exe.
+        touch(
+            &root_parent.join("TrafficBar.notes").join("plugins").join("nope.dll"),
+            b"nope",
+        );
+
+        let dest = root_parent.join("kept");
+        let copied = absorb_legacy_plugins(&root, &dest, &root_parent.join("unused-config"));
+        assert_eq!(copied, 4);
+        assert_eq!(std::fs::read(dest.join("live.dll")).unwrap(), b"live");
+        assert_eq!(std::fs::read(dest.join("cur.dll")).unwrap(), b"cur");
+        assert_eq!(std::fs::read(dest.join("old.dll")).unwrap(), b"old");
+        assert_eq!(std::fs::read(dest.join("saved.dll")).unwrap(), b"saved");
+        assert!(!root.join("plugins").join("live.dll").exists());
+        assert_eq!(
+            std::fs::read(rollback.join("plugins").join("saved.dll")).unwrap(),
+            b"saved"
+        );
+        assert!(
+            root_parent
+                .join("TrafficBar.notes")
+                .join("plugins")
+                .join("nope.dll")
+                .exists()
+        );
+
+        let _ = std::fs::remove_dir_all(&root_parent);
+    }
+
+    #[test]
+    fn protected_config_dir_keeps_ini_and_does_not_delete() {
+        let root_parent = std::env::temp_dir().join(format!(
+            "trafficbar-plugins-protected-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root_parent);
+        let src = root_parent.join("plugins");
+        touch(&src.join("plugin.dll"), b"dll");
+        touch(&src.join("plugin.ini"), b"ini");
+        let dest = root_parent.join("dest");
+        let copied = import_plugin_tree(&src, &dest, true, false);
+        assert_eq!(copied, 1);
+        assert_eq!(std::fs::read(dest.join("plugin.dll")).unwrap(), b"dll");
+        assert!(!dest.join("plugin.ini").exists());
+        assert!(src.join("plugin.dll").exists());
+        assert!(src.join("plugin.ini").exists());
+        let _ = std::fs::remove_dir_all(&root_parent);
+    }
+
+    #[test]
+    fn newer_destination_wins_and_stale_source_is_removed() {
+        let root_parent = std::env::temp_dir().join(format!(
+            "trafficbar-plugins-newer-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root_parent);
+        let src = root_parent.join("plugins").join("plugin.dll");
+        let dest = root_parent.join("dest").join("plugin.dll");
+        touch(&src, b"old");
+        touch(&dest, b"new");
+        let file = std::fs::File::options().write(true).open(&src).unwrap();
+        file.set_modified(SystemTime::UNIX_EPOCH).unwrap();
+        let copied = import_plugin_tree(src.parent().unwrap(), dest.parent().unwrap(), false, true);
+        assert_eq!(copied, 0);
+        assert_eq!(std::fs::read(&dest).unwrap(), b"new");
+        assert!(!src.exists());
+        let _ = std::fs::remove_dir_all(&root_parent);
+    }
+}

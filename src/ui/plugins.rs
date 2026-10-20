@@ -97,7 +97,7 @@ impl Render for PluginManagerView {
             .as_ref()
             .map(|p| p.file_name.clone())
             .unwrap_or_default();
-        let plugin_dir = crate::win::program_dir().join("plugins");
+        let plugin_dir = crate::win::plugin_dir();
         let hwnd = state::with(|s| s.main_hwnd);
         v_flex()
             .size_full()
