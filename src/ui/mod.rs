@@ -2,6 +2,7 @@
 //! about, update check and plugin manager.
 
 mod about;
+mod icon_select;
 mod assets;
 mod common;
 mod display_settings;
@@ -36,6 +37,7 @@ pub enum Slot {
     History,
     NetworkInfo,
     About,
+    IconSelect,
     Update,
     PluginManager,
     PluginInfo,
@@ -109,6 +111,19 @@ fn handle(cmd: UiCommand, cx: &mut App) {
         UiCommand::OpenPluginManager => plugins::open_manager(cx),
         UiCommand::OpenPluginInfo(i) => plugins::open_info(i, cx),
         UiCommand::OpenAbout => about::open(cx),
+        UiCommand::OpenIconSelect => icon_select::open(cx),
+        UiCommand::NotifyIconChanged => {
+            let handles: Vec<isize> = cx
+                .global::<OpenWindows>()
+                .windows
+                .iter()
+                .map(|w| w.2)
+                .collect();
+            for h in handles {
+                set_window_icon(HWND(h as *mut _));
+            }
+            cx.refresh_windows();
+        }
         UiCommand::CheckUpdate { silent } => update::check(silent, cx),
         UiCommand::ShowTooltip { x, y } => tooltip::show(x, y, cx),
         UiCommand::HideTooltip => tooltip::hide(),

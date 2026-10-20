@@ -27,6 +27,7 @@ const ID_DISPLAY_SETTINGS: u32 = 112;
 const ID_TASK_MANAGER: u32 = 113;
 const ID_PLUGIN_MANAGE: u32 = 114;
 const ID_OPTIONS: u32 = 115;
+const ID_CHANGE_NOTIFY_ICON: u32 = 125;
 const ID_HELP: u32 = 120;
 const ID_FAQ: u32 = 121;
 const ID_UPDATE_LOG: u32 = 122;
@@ -285,6 +286,12 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             &trm("TXT_PLUGIN_MANAGE"),
             icons.plugins,
         );
+        item(
+            menu,
+            ID_CHANGE_NOTIFY_ICON,
+            &trm("TXT_CHANGE_NOTIFY_ICON"),
+            none,
+        );
         append(
             menu,
             ID_OPTIONS,
@@ -454,6 +461,7 @@ fn execute(owner: HWND, id: u32, plugin: Option<usize>) {
         ID_TASK_MANAGER => app::open_task_manager(),
         ID_PLUGIN_MANAGE => app::send_ui(UiCommand::OpenPluginManager),
         ID_OPTIONS => app::send_ui(UiCommand::OpenOptions(0)),
+        ID_CHANGE_NOTIFY_ICON => app::send_ui(UiCommand::OpenIconSelect),
         ID_HELP | ID_FAQ | ID_UPDATE_LOG => win::shell_open(&help_url(id)),
         ID_ABOUT => app::send_ui(UiCommand::OpenAbout),
         ID_CHECK_UPDATE => app::send_ui(UiCommand::CheckUpdate { silent: false }),

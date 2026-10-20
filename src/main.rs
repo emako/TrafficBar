@@ -7,6 +7,7 @@ mod format;
 mod http;
 mod i18n;
 mod monitor;
+mod notify_icon;
 mod plugin;
 mod state;
 mod taskbar;

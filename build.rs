@@ -51,6 +51,41 @@ fn main() {
     remove_tlb_artifacts(&manifest.join("src").join("hardware_bridge"));
 
     build_hardware_library(&out_dir);
+    embed_notify_icons(&manifest, &out_dir);
+}
+
+/// Top-level `src/assets/icons/*.ico` only. Subdirectories such as `menu` stay out of the tray list.
+fn embed_notify_icons(manifest: &Path, out_dir: &Path) {
+    let dir = manifest.join("src").join("assets").join("icons");
+    let mut names = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let ico = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("ico"));
+            if !ico {
+                continue;
+            }
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names.sort();
+    let mut src = String::from("pub static CATALOG: &[(&str, &[u8])] = &[\n");
+    for name in &names {
+        let full = dir.join(name).to_string_lossy().replace('\\', "/");
+        src.push_str(&format!(
+            "    (\"{name}\", include_bytes!(r\"{full}\")),\n"
+        ));
+    }
+    src.push_str("];\n");
+    std::fs::write(out_dir.join("notify_icons.rs"), src).expect("write notify_icons.rs");
 }
 
 fn framework_dir() -> PathBuf {

@@ -45,6 +45,8 @@ pub enum UiCommand {
     OpenPluginManager,
     OpenPluginInfo(usize),
     OpenAbout,
+    OpenIconSelect,
+    NotifyIconChanged,
     CheckUpdate { silent: bool },
     ShowTooltip { x: i32, y: i32 },
     HideTooltip,
@@ -518,6 +520,12 @@ fn check_theme() {
         }
         s.rt.light_theme = light;
         s.settings.other.last_light_mode = light;
+        if s.settings.general.notify_icon_auto_adapt {
+            let next = crate::notify_icon::adapt(&s.settings.general.notify_icon, light);
+            if next != s.settings.general.notify_icon {
+                s.settings.general.notify_icon = next;
+            }
+        }
         if s.settings.taskbar.auto_adapt_light_theme {
             let idx = if light {
                 s.settings.taskbar.light_default_style
@@ -722,6 +730,8 @@ fn handle_main_msg(msg: MainMsg) {
                 s.plugins.send_settings(&s.settings.taskbar);
             });
             let _ = rt;
+            tray::reload();
+            send_ui(UiCommand::NotifyIconChanged);
             if reopen {
                 reopen_taskbar();
             } else {

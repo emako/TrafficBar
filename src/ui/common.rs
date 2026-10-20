@@ -3,7 +3,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use gpui::{
     AnyElement, AnyView, App, AppContext, Bounds, Context, Entity, Focusable, Hsla, Image,
@@ -23,27 +23,27 @@ use crate::i18n::tr;
 
 pub type Handler<T> = Rc<dyn Fn(T, &mut Window, &mut App)>;
 
-fn icon_image(dark: bool) -> Arc<Image> {
-    static DARK: OnceLock<Arc<Image>> = OnceLock::new();
-    static LIGHT: OnceLock<Arc<Image>> = OnceLock::new();
-    if dark {
-        DARK.get_or_init(|| {
-            Arc::new(Image::from_bytes(
-                ImageFormat::Png,
-                include_bytes!("../assets/icons/notify_dark.png").to_vec(),
-            ))
-        })
-        .clone()
-    } else {
-        LIGHT
-            .get_or_init(|| {
-                Arc::new(Image::from_bytes(
-                    ImageFormat::Png,
-                    include_bytes!("../assets/icons/notify_light.png").to_vec(),
-                ))
-            })
-            .clone()
+fn icon_image() -> Arc<Image> {
+    let name = crate::state::try_with(|s| s.settings.general.notify_icon.clone())
+        .unwrap_or_else(|| "notify_dark.ico".into());
+    static CACHE: std::sync::Mutex<Option<(String, Arc<Image>)>> = std::sync::Mutex::new(None);
+    let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((cached, image)) = guard.as_ref() {
+        if cached == &name {
+            return image.clone();
+        }
     }
+    let bytes = crate::notify_icon::preview_png(&name).unwrap_or_else(|| {
+        let light = name.contains("_light");
+        if light {
+            include_bytes!("../assets/icons/notify_light.png").to_vec()
+        } else {
+            include_bytes!("../assets/icons/notify_dark.png").to_vec()
+        }
+    });
+    let image = Arc::new(Image::from_bytes(ImageFormat::Png, bytes));
+    *guard = Some((name, image.clone()));
+    image
 }
 
 /// Title bar + content + gpui-component dialog layer.
@@ -61,7 +61,6 @@ impl Frame {
 impl Render for Frame {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let dark = theme.is_dark();
         v_flex()
             .size_full()
             .child(
@@ -80,7 +79,7 @@ impl Render for Frame {
                             .gap_2()
                             .pl_3()
                             .window_control_area(WindowControlArea::Drag)
-                            .child(img(icon_image(dark)).size(px(16.)))
+                            .child(img(icon_image()).size(px(16.)))
                             .child(div().text_sm().child(self.title.clone())),
                     )
                     .child(

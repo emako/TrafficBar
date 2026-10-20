@@ -313,6 +313,10 @@ pub struct GeneralSettings {
     pub auto_run: bool,
     pub auto_run_by_task_scheduler: bool,
     pub show_notify_icon: bool,
+    /// File name under `src/assets/icons`, for example `notify_dark.ico`.
+    pub notify_icon: String,
+    /// Swap a `*_dark` icon with its `*_light` pair when Windows theme changes.
+    pub notify_icon_auto_adapt: bool,
     pub traffic_tip_enable: bool,
     pub traffic_tip_value: i32,
     pub traffic_tip_unit: i32,
@@ -552,6 +556,21 @@ impl Settings {
                 false,
             ),
             show_notify_icon: true,
+            notify_icon: {
+                let name = ini.get_string("config", "notify_icon_file", "notify_dark.ico");
+                let name = if crate::notify_icon::contains(&name) {
+                    name
+                } else {
+                    "notify_dark.ico".to_string()
+                };
+                let auto = ini.get_bool("config", "notify_icon_auto_adapt", true);
+                if auto {
+                    crate::notify_icon::adapt(&name, light)
+                } else {
+                    name
+                }
+            },
+            notify_icon_auto_adapt: ini.get_bool("config", "notify_icon_auto_adapt", true),
             traffic_tip_enable: ini.get_bool("notify_tip", "traffic_tip_enable", false),
             traffic_tip_value: ini.get_int("notify_tip", "traffic_tip_value", 200),
             traffic_tip_unit: ini.get_int("notify_tip", "traffic_tip_unit", 0),
@@ -1018,6 +1037,12 @@ impl Settings {
         ini.set_bool("other", "debug_log", self.other.debug_log);
         ini.set_bool("other", "last_light_mode", self.other.last_light_mode);
 
+        ini.set_string("config", "notify_icon_file", &self.general.notify_icon);
+        ini.set_bool(
+            "config",
+            "notify_icon_auto_adapt",
+            self.general.notify_icon_auto_adapt,
+        );
         ini.set_string(
             "config",
             "plugin_disabled",

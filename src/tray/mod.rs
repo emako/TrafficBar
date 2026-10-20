@@ -36,9 +36,15 @@ thread_local! {
     static TRAY: RefCell<Option<Tray>> = const { RefCell::new(None) };
 }
 
-/// Loads the notify icon for the given taskbar theme: the white icon for dark taskbars and the black
-/// one for light taskbars (`AutoSelectNotifyIcon`).
+/// Loads the icon chosen in the notify-icon dialog. The stored name is already the one that
+/// matches the taskbar theme when auto-adapt is on.
 pub fn load_notify_icon(light: bool, size: i32) -> HICON {
+    let name = crate::state::try_with(|s| s.settings.general.notify_icon.clone())
+        .unwrap_or_else(|| "notify_dark.ico".to_string());
+    let icon = crate::notify_icon::load(&name, size);
+    if !icon.is_invalid() {
+        return icon;
+    }
     let id = if light {
         IDI_NOTIFY_LIGHT
     } else {
@@ -57,6 +63,23 @@ pub fn load_notify_icon(light: bool, size: i32) -> HICON {
         .map(|h| HICON(h.0))
         .unwrap_or_default()
     }
+}
+
+/// Replaces the tray icon after the selection changes.
+pub fn reload() {
+    TRAY.with(|c| {
+        if let Some(t) = c.borrow_mut().as_mut() {
+            let old = t.icon;
+            t.icon = load_notify_icon(t.light, small_icon_size());
+            let data = base_data(t);
+            unsafe {
+                let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
+                if !old.is_invalid() {
+                    let _ = DestroyIcon(old);
+                }
+            }
+        }
+    });
 }
 
 fn small_icon_size() -> i32 {
