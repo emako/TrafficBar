@@ -342,7 +342,7 @@ impl OptionsView {
             ))
             .child(check(
                 "font-bold",
-                "B",
+                tr("TXT_FONT_BOLD"),
                 font.bold,
                 false,
                 false,
@@ -354,7 +354,7 @@ impl OptionsView {
             ))
             .child(check(
                 "font-italic",
-                "I",
+                tr("TXT_FONT_ITALIC"),
                 font.italic,
                 false,
                 false,
@@ -368,7 +368,7 @@ impl OptionsView {
             ))
             .child(check(
                 "font-underline",
-                "U",
+                tr("TXT_FONT_UNDERLINE"),
                 font.underline,
                 false,
                 false,
@@ -382,7 +382,7 @@ impl OptionsView {
             ))
             .child(check(
                 "font-strike",
-                "S",
+                tr("TXT_FONT_STRIKEOUT"),
                 font.strike_out,
                 false,
                 false,
