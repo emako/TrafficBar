@@ -96,13 +96,21 @@ jobs:
             $name = "TrafficBar $tag"
             $prerelease = "false"
             $makeLatest = "true"
+            # New version tags: let GitHub generate notes once.
+            $generateNotes = "true"
+            $body = ""
           } else {
             # Branch / manual runs: rolling release under tag `latest`.
+            # Do not use generate_release_notes here — updating the same release
+            # would keep appending another "Full Changelog" line each run.
             $tag = "latest"
             $sha = $env:GITHUB_SHA.Substring(0, 7)
             $name = "TrafficBar latest ($sha)"
             $prerelease = "true"
             $makeLatest = "false"
+            $generateNotes = "false"
+            $repo = $env:GITHUB_REPOSITORY
+            $body = "**Full Changelog**: https://github.com/$repo/commits/$($env:GITHUB_SHA)"
           }
 
           "version=$cargo" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -110,6 +118,11 @@ jobs:
           "release_name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "generate_notes=$generateNotes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          # multiline body for softprops
+          "body<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $body | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -117,9 +130,10 @@ jobs:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ github.sha }}
           name: ${{ steps.meta.outputs.release_name }}
+          body: ${{ steps.meta.outputs.body }}
           draft: false
           prerelease: ${{ steps.meta.outputs.prerelease }}
           make_latest: ${{ steps.meta.outputs.make_latest }}
-          generate_release_notes: true
+          generate_release_notes: ${{ steps.meta.outputs.generate_notes }}
           fail_on_unmatched_files: true
           files: target/publish/*
