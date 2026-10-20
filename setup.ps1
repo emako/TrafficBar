@@ -110,5 +110,13 @@ Get-ChildItem -LiteralPath $outDir -Filter "assets*.json" -File | ForEach-Object
     [System.IO.File]::WriteAllText($_.FullName, $json, $utf8)
 }
 
+# True single-file portable: just TrafficBar.exe (no Update.exe). Distinct from the Velopack
+# Portable.zip which still ships the updater layout.
+$singleZip = Join-Path $outDir "TrafficBar-$version-single-x64.zip"
+if (Test-Path -LiteralPath $singleZip) {
+    Remove-Item -LiteralPath $singleZip -Force
+}
+Compress-Archive -LiteralPath $exe -DestinationPath $singleZip -CompressionLevel Optimal
+
 Write-Host "Output: $outDir"
 Get-ChildItem -LiteralPath $outDir | ForEach-Object { Write-Host ("  " + $_.Name) }
