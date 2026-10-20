@@ -1,6 +1,5 @@
-//! Menu icons in the same ICO layout as TrafficMonitor: 16, 20, 24, 28, 32 at 32-bit, in that
-//! order. Light and dark are separate files. The shown frame is `dpi * 16 / 96`, the same size
-//! `LoadImage` is asked for in the original.
+//! Menu icons follow `admin_dark.ico`: an ICO whose frames are PNG, 16, 20, 24, 28 and 32 at
+//! 32-bit. Light and dark are separate files. The shown frame is `dpi * 16 / 96`.
 
 use std::sync::Mutex;
 
@@ -173,7 +172,11 @@ fn ico_png(file: &'static [u8], px: i32) -> &'static [u8] {
         }
         let len = u32::from_le_bytes(file[entry + 8..entry + 12].try_into().unwrap()) as usize;
         let off = u32::from_le_bytes(file[entry + 12..entry + 16].try_into().unwrap()) as usize;
-        if off.saturating_add(len) > file.len() {
+        if off.saturating_add(len) > file.len() || len < 8 {
+            continue;
+        }
+        let png = &file[off..off + 8];
+        if png != [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
             continue;
         }
         let dist = (side - px).abs();
@@ -212,7 +215,7 @@ fn factory() -> Option<IWICImagingFactory> {
     unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).ok() }
 }
 
-/// PNG bytes to a 32-bit premultiplied bitmap. Menu items only honor alpha in that form.
+/// PNG frame to a 32-bit premultiplied bitmap. Menu items only honor alpha in that form.
 fn decode(factory: &IWICImagingFactory, png: &[u8], px: i32) -> Option<HBITMAP> {
     if png.is_empty() || px <= 0 {
         return None;
