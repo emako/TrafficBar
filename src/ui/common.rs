@@ -10,14 +10,15 @@ use gpui::{
     ImageFormat, InteractiveElement, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     ParentElement, Pixels, Render, Rgba, ScrollHandle, SharedString, StatefulInteractiveElement,
     Styled, Subscription, WeakEntity, Window, WindowControlArea, canvas, div, fill, img, point,
-    prelude::FluentBuilder, px, relative, rems, rgb, size,
+    prelude::FluentBuilder, px, relative, rems, rgb, size, svg,
 };
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::checkbox::Checkbox;
 use gpui_component::input::{Input, InputEvent, InputState, SelectAll};
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_component::tooltip::Tooltip;
-use gpui_component::{ActiveTheme, Disableable, Icon, IconName, Root, Sizable, h_flex, v_flex};
+use gpui_component::{
+    ActiveTheme, Disableable, Icon, IconName, IconNamed, Root, Sizable, h_flex, v_flex,
+};
 
 use crate::i18n::tr;
 
@@ -167,6 +168,10 @@ pub fn admin_mark(id: impl Into<SharedString>, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
+/// Corner radius for the checkbox glyph. gpui-component caps at 4px, which reads too round
+/// on the small (~14px) control; Win32/WinUI at this size is closer to 2px.
+const CHECKBOX_RADIUS: Pixels = px(2.);
+
 /// Checkbox, followed by an admin mark when `needs_admin` is set and the process is not elevated.
 pub fn check(
     id: impl Into<SharedString>,
@@ -178,16 +183,67 @@ pub fn check(
     cx: &App,
 ) -> AnyElement {
     let id: SharedString = id.into();
+    let label: SharedString = text.into();
     let elevated = crate::win::is_elevated();
+    let border_color = if checked {
+        cx.theme().primary
+    } else {
+        cx.theme().input
+    };
+    let color = if disabled {
+        border_color.opacity(0.5)
+    } else {
+        border_color
+    };
+    let label_color = if disabled {
+        cx.theme().muted_foreground
+    } else {
+        cx.theme().foreground
+    };
+    let check_color = if disabled {
+        cx.theme().primary_foreground.opacity(0.5)
+    } else {
+        cx.theme().primary_foreground
+    };
     h_flex()
         .items_center()
         .child(
-            Checkbox::new(gpui::ElementId::Name(id.clone()))
-                .label(text.into())
-                .checked(checked)
-                .disabled(disabled)
-                .small()
-                .on_click(move |v, window, cx| on_change(*v, window, cx)),
+            h_flex()
+                .id(gpui::ElementId::Name(id.clone()))
+                .items_center()
+                .gap_2()
+                .text_sm()
+                .line_height(relative(1.))
+                .text_color(label_color)
+                .child(
+                    div()
+                        .relative()
+                        .size_3p5()
+                        .flex_shrink_0()
+                        .border_1()
+                        .border_color(color)
+                        .rounded(CHECKBOX_RADIUS)
+                        .bg(if checked {
+                            color
+                        } else {
+                            cx.theme().background
+                        })
+                        .when(checked, |this| {
+                            this.child(
+                                svg()
+                                    .absolute()
+                                    .top_px()
+                                    .left_px()
+                                    .size_2p5()
+                                    .text_color(check_color)
+                                    .path(IconName::Check.path()),
+                            )
+                        }),
+                )
+                .child(label)
+                .when(!disabled, |this| {
+                    this.on_click(move |_, window, cx| on_change(!checked, window, cx))
+                }),
         )
         .when(needs_admin && !elevated, |this| {
             this.child(admin_mark(format!("{id}-admin"), cx))
