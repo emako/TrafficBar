@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg t="1792476215946" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8468" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512">
+  <defs>
+    <linearGradient id="fork" x1="32" y1="0" x2="32" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1FBEF2"/>
+      <stop offset="0.25" stop-color="#15ACE1"/>
+      <stop offset="0.5" stop-color="#0D9CD2"/>
+      <stop offset="0.75" stop-color="#058EC6"/>
+      <stop offset="1" stop-color="#0187BF"/>
+    </linearGradient>
+  </defs>
+  <path d="M266.24 344.75008C173.8752 344.75008 98.99008 419.62496 98.99008 512c0 92.3648 74.87488 167.24992 167.24992 167.24992h491.52c92.3648 0 167.24992-74.87488 167.24992-167.24992 0-92.3648-74.87488-167.24992-167.24992-167.24992H266.24zM266.24 307.2h491.52c113.11104 0 204.8 91.68896 204.8 204.8s-91.68896 204.8-204.8 204.8H266.24C153.12896 716.8 61.44 625.11104 61.44 512S153.12896 307.2 266.24 307.2z" fill="url(#fork)" p-id="8469"></path>
+  <path d="M192.84992 512a93.87008 93.09184 0 1 0 187.74016 0 93.87008 93.09184 0 1 0-187.74016 0Z" fill="#FB5F08" p-id="8470"></path><path d="M418.12992 512a93.87008 93.09184 0 1 0 187.74016 0 93.87008 93.09184 0 1 0-187.74016 0Z" fill="#FBC308" p-id="8471"></path><path d="M643.40992 512a93.87008 93.09184 0 1 0 187.74016 0 93.87008 93.09184 0 1 0-187.74016 0Z" fill="#1BF067" p-id="8472"></path>
+</svg>
