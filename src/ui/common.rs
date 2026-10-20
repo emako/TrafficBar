@@ -6,10 +6,11 @@ use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 
 use gpui::{
-    AnyElement, AnyView, App, AppContext, Context, Entity, Focusable, Hsla, Image, ImageFormat,
-    InteractiveElement, IntoElement, ParentElement, Render, Rgba, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, WeakEntity, Window, WindowControlArea, div,
-    img, prelude::FluentBuilder, px, relative, rems, rgb,
+    AnyElement, AnyView, App, AppContext, Bounds, Context, Entity, Focusable, Hsla, Image,
+    ImageFormat, InteractiveElement, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ParentElement, Pixels, Render, Rgba, ScrollHandle, SharedString, StatefulInteractiveElement,
+    Styled, Subscription, WeakEntity, Window, WindowControlArea, canvas, div, fill, img, point,
+    prelude::FluentBuilder, px, relative, rems, rgb, size,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::checkbox::Checkbox;
@@ -649,6 +650,181 @@ pub fn kv_row(
                 .child(key.into()),
         )
         .child(div().flex_1().min_w_0().text_sm().child(value.into()))
+}
+
+/// WinUI's scrollbar thumb is a narrow pill. gpui-component paints an 8px thumb
+/// on a 16px track, which reads much heavier beside that bar.
+const THIN_THUMB_WIDTH: f32 = 4.;
+const THIN_THUMB_INSET: f32 = 2.;
+const THIN_THUMB_MIN: f32 = 32.;
+const THIN_THUMB_HIT: f32 = 12.;
+
+#[derive(Clone, Copy)]
+struct ThinScrollState {
+    grab: Option<Pixels>,
+    hovered: bool,
+}
+
+struct ThinThumb {
+    bounds: Bounds<Pixels>,
+    track_top: Pixels,
+    travel: Pixels,
+    max_offset: Pixels,
+}
+
+/// Vertical scrollbar with a WinUI-sized thumb. The hit strip is wider than the pill
+/// so it can still be dragged.
+pub fn thin_vscroll(scroll: &ScrollHandle) -> impl IntoElement {
+    let scroll_metrics = scroll.clone();
+    let scroll_input = scroll.clone();
+    canvas(
+        move |bounds, window, cx| {
+            let state = window
+                .use_state(cx, |_, _| {
+                    Rc::new(Cell::new(ThinScrollState {
+                        grab: None,
+                        hovered: false,
+                    }))
+                })
+                .read(cx)
+                .clone();
+            let thumb = thin_thumb(&scroll_metrics, bounds);
+            (state, thumb)
+        },
+        move |bounds, (state, thumb), window, cx| {
+            let Some(thumb) = thumb else {
+                return;
+            };
+            let mouse = window.mouse_position();
+            let over = thumb.bounds.contains(&mouse);
+            let dragging = state.get().grab.is_some();
+            let color = if over || dragging {
+                cx.theme().scrollbar_thumb_hover
+            } else {
+                cx.theme().scrollbar_thumb
+            };
+            window.paint_quad(fill(thumb.bounds, color).corner_radii(px(THIN_THUMB_WIDTH / 2.)));
+
+            let hit = Bounds {
+                origin: point(bounds.right() - px(THIN_THUMB_HIT), bounds.top()),
+                size: size(px(THIN_THUMB_HIT), bounds.size.height),
+            };
+            let view = window.current_view();
+            let scroll = scroll_input.clone();
+            let drag_state = state.clone();
+            let thumb_bounds = thumb.bounds;
+            let track_top = thumb.track_top;
+            let travel = thumb.travel;
+            let max_offset = thumb.max_offset;
+
+            window.on_mouse_event({
+                let scroll = scroll.clone();
+                let drag_state = drag_state.clone();
+                move |event: &MouseDownEvent, phase, _, cx| {
+                    if !phase.bubble() || !hit.contains(&event.position) {
+                        return;
+                    }
+                    cx.stop_propagation();
+                    let grab = if thumb_bounds.contains(&event.position) {
+                        event.position.y - thumb_bounds.top()
+                    } else {
+                        let ratio = thumb_ratio(
+                            event.position.y - thumb_bounds.size.height / 2. - track_top,
+                            travel,
+                        );
+                        scroll_to_ratio(&scroll, max_offset, ratio);
+                        thumb_bounds.size.height / 2.
+                    };
+                    let mut next = drag_state.get();
+                    next.grab = Some(grab);
+                    drag_state.set(next);
+                    cx.notify(view);
+                }
+            });
+            window.on_mouse_event({
+                let scroll = scroll.clone();
+                let drag_state = drag_state.clone();
+                move |event: &MouseMoveEvent, _, _, cx| {
+                    let mut next = drag_state.get();
+                    let mut notify = false;
+                    if next.grab.is_some() && event.dragging() {
+                        cx.stop_propagation();
+                        let grab = next.grab.unwrap_or_default();
+                        let ratio = thumb_ratio(event.position.y - grab - track_top, travel);
+                        scroll_to_ratio(&scroll, max_offset, ratio);
+                        notify = true;
+                    }
+                    let hovered = hit.contains(&event.position);
+                    if next.hovered != hovered {
+                        next.hovered = hovered;
+                        notify = true;
+                    }
+                    if notify {
+                        drag_state.set(next);
+                        cx.notify(view);
+                    }
+                }
+            });
+            window.on_mouse_event({
+                let drag_state = drag_state.clone();
+                move |_: &MouseUpEvent, _, _, cx| {
+                    let mut next = drag_state.get();
+                    if next.grab.take().is_some() {
+                        drag_state.set(next);
+                        cx.notify(view);
+                    }
+                }
+            });
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .right_0()
+    .bottom_0()
+}
+
+fn thin_thumb(scroll: &ScrollHandle, bounds: Bounds<Pixels>) -> Option<ThinThumb> {
+    let max_offset = scroll.max_offset().height;
+    if max_offset <= px(1.) || bounds.size.height <= px(THIN_THUMB_MIN) {
+        return None;
+    }
+    let inset = px(THIN_THUMB_INSET);
+    let track = (bounds.size.height - inset * 2.).max(px(0.));
+    let viewport = scroll.bounds().size.height.max(px(1.));
+    let content = viewport + max_offset;
+    let thumb_h = (track * (viewport / content))
+        .max(px(THIN_THUMB_MIN))
+        .min(track);
+    let travel = (track - thumb_h).max(px(0.));
+    let ratio = (-scroll.offset().y / max_offset).clamp(0., 1.);
+    let track_top = bounds.top() + inset;
+    Some(ThinThumb {
+        bounds: Bounds {
+            origin: point(
+                bounds.right() - inset - px(THIN_THUMB_WIDTH),
+                track_top + travel * ratio,
+            ),
+            size: size(px(THIN_THUMB_WIDTH), thumb_h),
+        },
+        track_top,
+        travel,
+        max_offset,
+    })
+}
+
+fn thumb_ratio(distance: Pixels, travel: Pixels) -> f32 {
+    if travel <= px(0.) {
+        0.
+    } else {
+        (distance / travel).clamp(0., 1.)
+    }
+}
+
+fn scroll_to_ratio(scroll: &ScrollHandle, max_offset: Pixels, ratio: f32) {
+    let mut offset = scroll.offset();
+    offset.y = -max_offset * ratio;
+    scroll.set_offset(offset);
 }
 
 #[cfg(test)]

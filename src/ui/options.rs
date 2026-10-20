@@ -3,8 +3,8 @@
 
 use gpui::{
     AnyElement, App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement,
-    Render, StatefulInteractiveElement, Styled, Subscription, WeakEntity, Window, div,
-    prelude::FluentBuilder, px, size,
+    Render, ScrollHandle, StatefulInteractiveElement, Styled, Subscription, WeakEntity, Window,
+    div, prelude::FluentBuilder, px, size,
 };
 use gpui_component::button::Button;
 use gpui_component::color_picker::{ColorPicker, ColorPickerEvent, ColorPickerState};
@@ -12,12 +12,13 @@ use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_component::select::{SearchableVec, Select, SelectEvent, SelectState};
 use gpui_component::tab::{Tab, TabBar};
-use gpui_component::{IndexPath, Sizable, WindowExt, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_component::scroll::ScrollableElement;
+use gpui_component::{IndexPath, Sizable, WindowExt, h_flex, v_flex};
 
 use super::Slot;
 use super::common::{
     StepperSet, admin_mark, button, check, choice, colorref_to_hsla, footer, group,
-    hsla_to_colorref, label, muted, primary_button, radio, row, stepper,
+    hsla_to_colorref, label, muted, primary_button, radio, row, stepper, thin_vscroll,
 };
 use super::display_settings::{ItemOrderModel, hardware_filter};
 use crate::config::{
@@ -55,6 +56,7 @@ pub struct OptionsView {
     disp_inputs: Vec<(ItemKey, String, Entity<InputState>)>,
     order_model: Option<ItemOrderModel>,
     adapters: Vec<String>,
+    page_scroll: ScrollHandle,
     _subs: Vec<Subscription>,
 }
 
@@ -211,6 +213,7 @@ impl OptionsView {
             disp_inputs: Vec::new(),
             order_model: None,
             adapters: Vec::new(),
+            page_scroll: ScrollHandle::new(),
             _subs: subs,
         }
     }
@@ -556,7 +559,6 @@ impl OptionsView {
         me: &WeakEntity<Self>,
         window: &mut Window,
         cx: &mut Context<Self>,
-        width: gpui::Pixels,
     ) -> AnyElement {
         let t = &self.draft.taskbar;
         let m = me.clone();
@@ -585,8 +587,7 @@ impl OptionsView {
             };
         }
         group(tr("TXT_DISPLAY_SETTINGS"), cx)
-            .w(width)
-            .max_w(width)
+            .flex_1()
             .min_w(px(0.))
             .child(
                 row()
@@ -734,8 +735,9 @@ impl OptionsView {
         ];
         group(tr("TXT_UNIT_SETTINGS"), cx)
             .w(width)
+            .min_w(width)
             .max_w(width)
-            .min_w(px(0.))
+            .flex_shrink_0()
             .child(
                 row()
                     .child(label(tr("TXT_NETSPEED_UNIT")))
@@ -1082,12 +1084,7 @@ impl OptionsView {
 
     // ----------------------------------------------------------------- general page
 
-    fn app_group(
-        &self,
-        me: &WeakEntity<Self>,
-        cx: &mut Context<Self>,
-        width: gpui::Pixels,
-    ) -> AnyElement {
+    fn app_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
         let g = &self.draft.general;
         let m = me.clone();
         let language_ids: Vec<String> = crate::i18n::choices()
@@ -1099,8 +1096,7 @@ impl OptionsView {
         let lang_index = crate::i18n::choice_index(&g.language);
         let checking = state::with(|s| s.checking_update);
         group(tr("TXT_APPLICATION_SETTINGS"), cx)
-            .w(width)
-            .max_w(width)
+            .flex_1()
             .min_w(px(0.))
             .child(
                 row()
@@ -1198,10 +1194,9 @@ impl OptionsView {
             ))
             .child(
                 muted(tr("TXT_EFFICIENCY_MODE_TIP"), cx)
-                    .w(px(400.))
+                    .w_full()
                     .whitespace_normal(),
             )
-            .w_full()
             .into_any_element()
     }
 
@@ -1218,8 +1213,9 @@ impl OptionsView {
         let dir = self.draft.config_dir.clone();
         group(tr("TXT_CONFIGURATION_AND_DATA_FILES"), cx)
             .w(width)
+            .min_w(width)
             .max_w(width)
-            .min_w(px(0.))
+            .flex_shrink_0()
             .child(radio(
                 "save-appdata",
                 tr("TXT_SAVE_TO_APPDATA_RADIO"),
@@ -1254,7 +1250,6 @@ impl OptionsView {
                     crate::win::shell_open(&dir.to_string_lossy());
                 },
             )))
-            .w_full()
             .into_any_element()
     }
 
@@ -2116,17 +2111,16 @@ impl Render for OptionsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let me = cx.entity().downgrade();
         let tab_me = me.clone();
-        let page_w = window.viewport_size().width;
         let side_gap = px(16.);
         let side_w = px(230.);
-        let main_w = (page_w - px(48.) - side_gap - side_w).max(px(280.));
         let page: Vec<AnyElement> = if self.tab == 0 {
             vec![
                 self.color_font_group(&me, window, cx),
                 h_flex()
+                    .w_full()
                     .gap(side_gap)
                     .items_start()
-                    .child(self.display_group(&me, window, cx, main_w))
+                    .child(self.display_group(&me, window, cx))
                     .child(self.unit_group(&me, cx, side_w))
                     .into_any_element(),
                 self.taskbar_wnd_group(&me, cx),
@@ -2136,9 +2130,10 @@ impl Render for OptionsView {
         } else {
             vec![
                 h_flex()
+                    .w_full()
                     .gap(side_gap)
                     .items_start()
-                    .child(self.app_group(&me, cx, main_w))
+                    .child(self.app_group(&me, cx))
                     .child(self.data_group(&me, cx, side_w))
                     .into_any_element(),
                 self.auto_run_group(&me, cx),
@@ -2164,14 +2159,25 @@ impl Render for OptionsView {
                 ),
             )
             .child(
-                v_flex()
-                    .id(("options-page", self.tab))
+                div()
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
-                    .p_4()
-                    .gap_4()
-                    .children(page),
+                    .relative()
+                    .child(
+                        v_flex()
+                            .id(("options-page", self.tab))
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .overflow_y_scroll()
+                            .track_scroll(&self.page_scroll)
+                            .p_4()
+                            .gap_4()
+                            .children(page),
+                    )
+                    .child(thin_vscroll(&self.page_scroll)),
             )
             .child(footer(
                 vec![
