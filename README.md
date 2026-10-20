@@ -52,7 +52,7 @@ cargo build --release
 
 ## 数据和配置
 
-默认保存在 `%AppData%\TrafficBar`（`config.ini`、`history_traffic.dat`）。在程序目录放置 `global_cfg.ini` 并设置 `portable_mode = true` 可改为保存到程序目录（Velopack 安装下也是安装根目录，更新不会覆盖）。
+默认保存在 `%AppData%\TrafficBar`（`config.ini`、`history_traffic.dat`）。只有便携版（没有 `Update.exe` 的 zip）能改成保存到程序目录，对应程序目录下 `global_cfg.ini` 的 `portable_mode = true`。安装版会忽略这个选项，并把它改回 AppData。
 
 ## 图标
 

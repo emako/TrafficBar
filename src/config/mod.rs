@@ -425,13 +425,17 @@ pub fn transparent_color_convert(color: &mut u32) {
 }
 
 /// Resolves where config.ini / history_traffic.dat live (`LoadGlobalConfig`).
+///
+/// Saving next to the program is kept only for a portable build. An installed copy falls back
+/// to AppData and clears a stored `portable_mode`.
 pub fn resolve_config_dir() -> (PathBuf, bool, bool) {
     let program_dir = win::program_dir();
     let global = Ini::load(&program_dir.join("global_cfg.ini"));
-    let mut portable = global.get_bool("config", "portable_mode", false);
+    let saved = global.get_bool("config", "portable_mode", false);
     let writable = is_dir_writable(&program_dir);
-    if !writable {
-        portable = false;
+    let portable = saved && writable && win::is_portable_edition();
+    if saved && !win::is_portable_edition() {
+        let _ = save_global_config(false);
     }
     let dir = if portable {
         program_dir

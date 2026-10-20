@@ -345,6 +345,11 @@ pub fn install_root() -> Option<PathBuf> {
     None
 }
 
+/// Portable zip and unpacked/`cargo` builds have no `Update.exe`. An installed copy does.
+pub fn is_portable_edition() -> bool {
+    install_root().is_none()
+}
+
 /// Directory for `global_cfg.ini`. Under a Velopack install this is the pack root (sibling of
 /// `current`). In-app updates replace `current` and leave this directory alone. Setup.exe repair
 /// does not: it renames the whole root and deletes it.

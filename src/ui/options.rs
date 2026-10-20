@@ -265,6 +265,9 @@ impl OptionsView {
         draft.general.auto_run = self.auto_run;
         draft.general.auto_run_by_task_scheduler = self.auto_run_task;
 
+        if !crate::win::is_portable_edition() {
+            draft.general.portable_mode = false;
+        }
         let mut notes = Vec::new();
         if draft.general.portable_mode != self.orig_portable {
             crate::config::save_global_config(draft.general.portable_mode);
@@ -1211,6 +1214,7 @@ impl OptionsView {
         let g = &self.draft.general;
         let m = me.clone();
         let writable = state::with(|s| s.exe_dir_writable);
+        let portable_edition = crate::win::is_portable_edition();
         let dir = self.draft.config_dir.clone();
         group(tr("TXT_CONFIGURATION_AND_DATA_FILES"), cx)
             .w(width)
@@ -1219,7 +1223,7 @@ impl OptionsView {
             .child(radio(
                 "save-appdata",
                 tr("TXT_SAVE_TO_APPDATA_RADIO"),
-                !g.portable_mode,
+                !g.portable_mode || !portable_edition,
                 false,
                 {
                     let m = m.clone();
@@ -1231,12 +1235,14 @@ impl OptionsView {
             .child(radio(
                 "save-exe-dir",
                 tr("TXT_SAVE_TO_PROGRAM_DIR_RADIO"),
-                g.portable_mode,
-                !writable,
+                g.portable_mode && portable_edition,
+                !writable || !portable_edition,
                 {
                     let m = m.clone();
                     move |w, cx| {
-                        Self::update(&m, w, cx, |s, _, _| s.draft.general.portable_mode = true)
+                        Self::update(&m, w, cx, |s, _, _| {
+                            s.draft.general.portable_mode = crate::win::is_portable_edition()
+                        })
                     }
                 },
             ))
