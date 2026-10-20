@@ -1,3 +1,7 @@
+[alias]
+# cargo setup → src/bin/setup.rs → setup.ps1
+setup = "run --bin setup -q --"
+
 [source.crates-io]
 replace-with = "rsproxy-sparse"
 

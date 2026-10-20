@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:USERPROFILE ".dotnet\tools"
+          if ($env:PATH -notlike "*$tools*") {
+            $env:PATH = "$tools;$env:PATH"
+          }
+          .\setup.ps1
+
+      - name: Resolve version
+        id: meta
+        shell: pwsh
+        run: |
+          $toml = Get-Content -LiteralPath Cargo.toml -Raw
+          if ($toml -notmatch '(?m)^version\s*=\s*"([^"]+)"') {
+            throw "Cannot read version from Cargo.toml"
+          }
+          $cargo = $Matches[1]
+
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $tag = $env:GITHUB_REF_NAME
+            $expected = "v$cargo"
+            if ($tag -ne $expected) {
+              throw "Tag '$tag' does not match Cargo.toml version '$expected'"
+            }
+            $name = "TrafficBar $tag"
+            $prerelease = "false"
+            $makeLatest = "true"
+          } else {
+            # Branch / manual runs: rolling release under tag `latest`.
+            $tag = "latest"
+            $sha = $env:GITHUB_SHA.Substring(0, 7)
+            $name = "TrafficBar latest ($sha)"
+            $prerelease = "true"
+            $makeLatest = "false"
+          }
+
+          "version=$cargo" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "release_name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Get-ChildItem -LiteralPath "target\publish" -File | ForEach-Object { Write-Host $_.Name }
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.meta.outputs.release_name }}
+          draft: false
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          make_latest: ${{ steps.meta.outputs.make_latest }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: target/publish/*

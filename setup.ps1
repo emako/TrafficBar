@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Pack TrafficBar with Velopack (Setup.exe, MSI, update feed).
+    Build TrafficBar installers with Velopack (Setup.exe, MSI, update feed).
 .DESCRIPTION
     Runs build.ps1, copies the exe into a clean pack dir, then vpk pack.
 #>
@@ -23,7 +23,7 @@ $msiVersion = "$version.0"
 
 $releaseDir = Join-Path $PSScriptRoot "target\release"
 $packDir = Join-Path $PSScriptRoot "target\pack"
-$outDir = Join-Path $PSScriptRoot "target\setup"
+$outDir = Join-Path $PSScriptRoot "target\publish"
 $exeName = "TrafficBar.exe"
 $exe = Join-Path $releaseDir $exeName
 $icon = Join-Path $PSScriptRoot "src\assets\icons\app.ico"
@@ -41,7 +41,7 @@ New-Item -ItemType Directory -Path $packDir | Out-Null
 Copy-Item -LiteralPath $exe -Destination (Join-Path $packDir $exeName)
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    throw ".NET SDK 8+ (dotnet) is required"
+    throw ".NET SDK 10+ (dotnet) is required"
 }
 & dotnet tool update -g vpk
 if ($LASTEXITCODE -ne 0) {

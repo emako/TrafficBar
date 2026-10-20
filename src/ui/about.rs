@@ -11,7 +11,8 @@ use crate::i18n::tr;
 pub struct AboutView;
 
 fn link(id: &'static str, text: String, url: &'static str) -> impl IntoElement {
-    Link::new(id).href(url).text_sm().child(text)
+    // Keep text_sm off Link: its hover/active style replaces Style.text and drops font_size.
+    div().text_sm().child(Link::new(id).href(url).child(text))
 }
 
 impl Render for AboutView {

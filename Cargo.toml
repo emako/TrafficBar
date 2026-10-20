@@ -5,6 +5,7 @@ edition = "2024"
 description = "TrafficMonitor taskbar window rewritten with Rust + GPUI"
 license = "MIT"
 build = "build.rs"
+default-run = "TrafficBar"
 
 [[bin]]
 name = "TrafficBar"

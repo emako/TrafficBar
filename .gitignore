@@ -1,7 +1,8 @@
 /target
 *.log
 .vs
-**/bin
-**/obj
+# C# build outputs (do not ignore Rust src/bin/)
+src/hardware_bridge/**/bin/
+src/hardware_bridge/**/obj/
 mscorlib.tlh
 mscorlib.tli
