@@ -353,7 +353,7 @@ fn build_hardware_library(out_dir: &Path) {
     } else {
         "Debug"
     };
-    // AnyCPU IL embeds into both x64 and ARM64EC hosts (EC loads x64-compatible assemblies).
+    // AnyCPU IL embeds into both x64 and native ARM64 hosts.
     let platform = "AnyCPU";
     let output = Command::new("dotnet")
         .args([

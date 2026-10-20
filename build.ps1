@@ -8,7 +8,7 @@
     Does not start the program.
 .PARAMETER Target
     Rust target triple. Defaults to the host (no --target). Use
-    x86_64-pc-windows-msvc or arm64ec-pc-windows-msvc for an explicit arch.
+    x86_64-pc-windows-msvc or aarch64-pc-windows-msvc for an explicit arch.
 #>
 param(
     [string] $Target = ""
@@ -75,7 +75,7 @@ function Import-VcVars {
 
     if ($VcArch -in @("x64_arm64", "amd64_arm64", "arm64") -and -not (Test-Arm64CrossClInstalled -VsInstallPath $vs)) {
         throw @"
-MSVC ARM64/ARM64EC build tools are missing (no Hostx64\arm64\cl.exe).
+MSVC ARM64 build tools are missing (no Hostx64\arm64\cl.exe).
 In Visual Studio Installer, add individual component:
   MSVC v*** - VS *** C++ ARM64/ARM64EC build tools
   (Microsoft.VisualStudio.Component.VC.Tools.ARM64)
@@ -83,11 +83,11 @@ Then re-run this script.
 "@
     }
 
-    # Capture env after vcvarsall; ARM64EC uses the ARM64 cross tools (cl /arm64EC).
+    # Capture env after vcvarsall (native ARM64 or x64→ARM64 cross tools).
     $cmd = "`"$vcvars`" $VcArch >nul 2>&1 && set"
     $output = & cmd /c $cmd
     if ($LASTEXITCODE -ne 0) {
-        throw "vcvarsall.bat $VcArch failed (exit $LASTEXITCODE). Install MSVC ARM64/ARM64EC build tools for arm64ec targets."
+        throw "vcvarsall.bat $VcArch failed (exit $LASTEXITCODE). Install MSVC ARM64 build tools for aarch64 targets."
     }
     foreach ($line in $output) {
         if ($line -match '^(.*?)=(.*)$') {
@@ -109,7 +109,7 @@ if ([string]::IsNullOrWhiteSpace($Target)) {
 
 $supported = @(
     "x86_64-pc-windows-msvc",
-    "arm64ec-pc-windows-msvc"
+    "aarch64-pc-windows-msvc"
 )
 if ($Target -notin $supported) {
     throw "Unsupported -Target '$Target'. Use: $($supported -join ', ')"
@@ -126,8 +126,7 @@ if ($useExplicitTarget) {
 
 switch ($Target) {
     "x86_64-pc-windows-msvc" { $vcArch = "x64" }
-    "arm64ec-pc-windows-msvc" {
-        # ARM64EC is built with the ARM64 toolset (see Microsoft Arm64EC docs).
+    "aarch64-pc-windows-msvc" {
         if ($hostTarget -eq "aarch64-pc-windows-msvc") {
             $vcArch = "arm64"
         } else {
@@ -136,7 +135,7 @@ switch ($Target) {
     }
 }
 
-if ($Target -eq "arm64ec-pc-windows-msvc" -or -not (Test-ClAvailable)) {
+if ($Target -eq "aarch64-pc-windows-msvc" -or -not (Test-ClAvailable)) {
     Import-VcVars -VcArch $vcArch
 }
 

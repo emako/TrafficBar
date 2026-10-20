@@ -6,7 +6,7 @@
     Runs build.ps1, copies the exe into a clean pack dir, then vpk pack.
 .PARAMETER Target
     Rust target triple. Defaults to the host. Supported:
-    x86_64-pc-windows-msvc, arm64ec-pc-windows-msvc.
+    x86_64-pc-windows-msvc, aarch64-pc-windows-msvc.
 #>
 param(
     [Parameter(Position = 0)]
@@ -63,15 +63,14 @@ switch ($Target) {
         $vpkChannel = "win"
         $framework = "net472,vcredist143-x64"
     }
-    "arm64ec-pc-windows-msvc" {
-        $archSuffix = "arm64ec"
-        # Velopack has no win-arm64ec RID; gate on machine arch (WoA).
+    "aarch64-pc-windows-msvc" {
+        $archSuffix = "arm64"
         $vpkRuntime = "win-arm64"
-        $vpkChannel = "win-arm64ec"
+        $vpkChannel = "win-arm64"
         $framework = "net472,vcredist143-arm64"
     }
     default {
-        throw "Unsupported -Target '$Target'. Use: x86_64-pc-windows-msvc, arm64ec-pc-windows-msvc"
+        throw "Unsupported -Target '$Target'. Use: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc"
     }
 }
 
@@ -209,7 +208,7 @@ Get-ChildItem -LiteralPath $archOutDir -Filter "assets*.json" -File | ForEach-Ob
     }
     [System.IO.File]::WriteAllText($_.FullName, $json, $utf8)
 }
-# Channel-specific feed (releases.win.json / releases.win-arm64ec.json) already uses the channel name.
+# Channel-specific feed (releases.win.json / releases.win-arm64.json) already uses the channel name.
 Get-ChildItem -LiteralPath $archOutDir -Filter "releases*.json" -File | ForEach-Object {
     $json = [System.IO.File]::ReadAllText($_.FullName)
     $changed = $false

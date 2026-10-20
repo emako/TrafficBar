@@ -15,7 +15,7 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-msvc
-          - arm64ec-pc-windows-msvc
+          - aarch64-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,9 +30,9 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      # ARM64EC uses the ARM64 MSVC toolset (cl /arm64EC). x64 keeps the default x64 tools.
+      # Native ARM64 uses the ARM64 MSVC toolset. x64 keeps the default x64 tools.
       - name: Setup MSVC (ARM64 cross tools)
-        if: matrix.target == 'arm64ec-pc-windows-msvc'
+        if: matrix.target == 'aarch64-pc-windows-msvc'
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: amd64_arm64

@@ -1,5 +1,5 @@
 [alias]
-# cargo setup → setup.ps1 (pass-through args, e.g. cargo setup -- -Target arm64ec-pc-windows-msvc)
+# cargo setup → setup.ps1 (pass-through args, e.g. cargo setup -- -Target aarch64-pc-windows-msvc)
 setup = "!powershell -NoProfile -ExecutionPolicy Bypass -File ./setup.ps1"
 
 [source.crates-io]

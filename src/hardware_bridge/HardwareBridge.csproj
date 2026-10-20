@@ -7,7 +7,7 @@
     <LangVersion>preview</LangVersion>
     <AssemblyName>TrafficBar.Hardware</AssemblyName>
     <RootNamespace>TrafficBar.Hardware</RootNamespace>
-    <!-- AnyCPU IL: loadable from x64 and ARM64EC hosts (EC loads x64-compatible assemblies). -->
+    <!-- AnyCPU IL: loadable from x64 and native ARM64 hosts. -->
     <Platforms>AnyCPU</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
