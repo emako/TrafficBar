@@ -312,6 +312,7 @@ pub struct GeneralSettings {
     pub update_source: i32,
     pub auto_run: bool,
     pub auto_run_by_task_scheduler: bool,
+    /// Notification-area icon. Off removes it; a balloon still shows it briefly.
     pub show_notify_icon: bool,
     /// File name under `src/assets/icons`, for example `notify_dark.ico`.
     pub notify_icon: String,
@@ -555,7 +556,7 @@ impl Settings {
                 "auto_run_by_task_scheduler",
                 false,
             ),
-            show_notify_icon: true,
+            show_notify_icon: ini.get_bool("config", "show_notify_icon", true),
             notify_icon: {
                 let name = ini.get_string("config", "notify_icon_file", "notify_dark.ico");
                 let name = if crate::notify_icon::contains(&name) {
@@ -1037,6 +1038,7 @@ impl Settings {
         ini.set_bool("other", "debug_log", self.other.debug_log);
         ini.set_bool("other", "last_light_mode", self.other.last_light_mode);
 
+        ini.set_bool("config", "show_notify_icon", self.general.show_notify_icon);
         ini.set_string("config", "notify_icon_file", &self.general.notify_icon);
         ini.set_bool(
             "config",

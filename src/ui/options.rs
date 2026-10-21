@@ -1253,6 +1253,34 @@ impl OptionsView {
             .into_any_element()
     }
 
+    /// `IDC_SHOW_NOTIFY_ICON_CHECK` inside the original "显示" group.
+    fn notify_icon_group(
+        &self,
+        me: &WeakEntity<Self>,
+        cx: &mut Context<Self>,
+        width: gpui::Pixels,
+    ) -> AnyElement {
+        let show = self.draft.general.show_notify_icon;
+        let m = me.clone();
+        group(tr("TXT_DISPLAY"), cx)
+            .w(width)
+            .min_w(width)
+            .max_w(width)
+            .flex_shrink_0()
+            .child(check(
+                "show-notify-icon",
+                tr_plain("TXT_SHOW_NOTIFY_ICON_CHECK"),
+                show,
+                false,
+                false,
+                move |v, w, cx| {
+                    Self::update(&m, w, cx, |s, _, _| s.draft.general.show_notify_icon = v)
+                },
+                cx,
+            ))
+            .into_any_element()
+    }
+
     fn auto_run_group(&self, me: &WeakEntity<Self>, cx: &mut Context<Self>) -> AnyElement {
         let m = me.clone();
         let elevated = self.rt.elevated;
@@ -2134,7 +2162,16 @@ impl Render for OptionsView {
                     .gap(side_gap)
                     .items_start()
                     .child(self.app_group(&me, cx))
-                    .child(self.data_group(&me, cx, side_w))
+                    .child(
+                        v_flex()
+                            .w(side_w)
+                            .min_w(side_w)
+                            .max_w(side_w)
+                            .flex_shrink_0()
+                            .gap_4()
+                            .child(self.data_group(&me, cx, side_w))
+                            .child(self.notify_icon_group(&me, cx, side_w)),
+                    )
                     .into_any_element(),
                 self.auto_run_group(&me, cx),
                 self.notify_group(&me, window, cx),

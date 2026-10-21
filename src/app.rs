@@ -33,6 +33,9 @@ pub const WM_APP_ACTIVATE: u32 = WM_APP + 12;
 const TIMER_TASKBAR: usize = 1;
 const TIMER_MAIN: usize = 2;
 const TIMER_REOPEN: usize = 3;
+/// `DELETE_NOTIFY_ICON_TIMER`: remove an icon that was added only so a balloon could show.
+const TIMER_HIDE_NOTIFY: usize = 4;
+const HIDE_NOTIFY_ICON_DELAY_MS: u32 = 8000;
 const MAX_INSERT_RETRY: u32 = 5;
 
 /// Commands for the GPUI side.
@@ -335,7 +338,7 @@ unsafe extern "system" fn main_wndproc(
             loop {
                 let next = NOTIFY_QUEUE.lock().unwrap().pop_front();
                 match next {
-                    Some((title, message)) => tray::notify(&title, &message),
+                    Some((title, message)) => show_notify(&title, &message),
                     None => break,
                 }
             }
@@ -356,6 +359,7 @@ unsafe extern "system" fn main_wndproc(
                     TICKS.with(|t| t.borrow_mut().reopen_pending = false);
                     reopen_taskbar();
                 }
+                TIMER_HIDE_NOTIFY => hide_temporary_notify_icon(hwnd),
                 _ => {}
             }
             LRESULT(0)
@@ -634,7 +638,31 @@ fn check_notifications(tick: u64) {
         }
     });
     for p in pending {
-        tray::notify(&title, &p);
+        show_notify(&title, &p);
+    }
+}
+
+/// `ShowNotifyTip`. A hidden icon is put back for the balloon, then removed after 8 seconds.
+fn show_notify(title: &str, message: &str) {
+    if tray::notify(title, message) {
+        unsafe {
+            SetTimer(
+                Some(main_hwnd()),
+                TIMER_HIDE_NOTIFY,
+                HIDE_NOTIFY_ICON_DELAY_MS,
+                None,
+            );
+        }
+    }
+}
+
+fn hide_temporary_notify_icon(hwnd: HWND) {
+    unsafe {
+        let _ = KillTimer(Some(hwnd), TIMER_HIDE_NOTIFY);
+    }
+    let show = state::try_with(|s| s.settings.general.show_notify_icon).unwrap_or(true);
+    if !show {
+        tray::set_visible(false);
     }
 }
 
@@ -731,6 +759,8 @@ fn handle_main_msg(msg: MainMsg) {
             });
             let _ = rt;
             tray::reload();
+            let show_icon = state::with(|s| s.settings.general.show_notify_icon);
+            tray::set_visible(show_icon);
             send_ui(UiCommand::NotifyIconChanged);
             if reopen {
                 reopen_taskbar();
@@ -815,6 +845,9 @@ fn shutdown() {
         m.quit();
     }
     taskbar::close();
+    unsafe {
+        let _ = KillTimer(Some(main_hwnd()), TIMER_HIDE_NOTIFY);
+    }
     tray::destroy();
 }
 

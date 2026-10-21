@@ -65,15 +65,23 @@ pub fn load_notify_icon(light: bool, size: i32) -> HICON {
     }
 }
 
+fn wants_icon() -> bool {
+    crate::state::try_with(|s| s.settings.general.show_notify_icon).unwrap_or(true)
+}
+
 /// Replaces the tray icon after the selection changes.
 pub fn reload() {
     TRAY.with(|c| {
         if let Some(t) = c.borrow_mut().as_mut() {
             let old = t.icon;
             t.icon = load_notify_icon(t.light, small_icon_size());
-            let data = base_data(t);
+            if t.added {
+                let data = base_data(t);
+                unsafe {
+                    let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
+                }
+            }
             unsafe {
-                let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
                 if !old.is_invalid() {
                     let _ = DestroyIcon(old);
                 }
@@ -116,24 +124,61 @@ pub fn create(hwnd: HWND, light: bool) {
         light,
         added: false,
     };
-    let mut data = base_data(&t);
-    copy_wide(&mut data.szTip, &tr("APP_NAME"));
-    t.added = unsafe { Shell_NotifyIconW(NIM_ADD, &data).as_bool() };
-    if !t.added {
-        log::warn!("Shell_NotifyIcon(NIM_ADD) failed");
+    if wants_icon() {
+        let mut data = base_data(&t);
+        copy_wide(&mut data.szTip, &tr("APP_NAME"));
+        t.added = unsafe { Shell_NotifyIconW(NIM_ADD, &data).as_bool() };
+        if !t.added {
+            log::warn!("Shell_NotifyIcon(NIM_ADD) failed");
+        }
     }
     TRAY.with(|c| *c.borrow_mut() = Some(t));
 }
 
+/// `AddNotifyIcon` / `DeleteNotifyIcon`. The saved setting is left unchanged.
+pub fn set_visible(show: bool) {
+    let just_added = TRAY.with(|c| {
+        let mut slot = c.borrow_mut();
+        let Some(t) = slot.as_mut() else {
+            return false;
+        };
+        if t.added == show {
+            return false;
+        }
+        if show {
+            let mut data = base_data(t);
+            copy_wide(&mut data.szTip, &tr("APP_NAME"));
+            t.added = unsafe { Shell_NotifyIconW(NIM_ADD, &data).as_bool() };
+            if !t.added {
+                log::warn!("Shell_NotifyIcon(NIM_ADD) failed");
+            }
+        } else {
+            let data = base_data(t);
+            unsafe {
+                let _ = Shell_NotifyIconW(NIM_DELETE, &data);
+            }
+            t.added = false;
+        }
+        show && t.added
+    });
+    if just_added {
+        update_tip();
+    }
+}
+
 /// Re-adds the icon after explorer restarts (`TaskbarCreated`).
 pub fn readd() {
+    let show = wants_icon();
     TRAY.with(|c| {
         if let Some(t) = c.borrow_mut().as_mut() {
             let data = base_data(t);
             unsafe {
                 let _ = Shell_NotifyIconW(NIM_DELETE, &data);
             }
-            t.added = unsafe { Shell_NotifyIconW(NIM_ADD, &data).as_bool() };
+            t.added = false;
+            if show {
+                t.added = unsafe { Shell_NotifyIconW(NIM_ADD, &data).as_bool() };
+            }
         }
     });
 }
@@ -147,9 +192,13 @@ pub fn set_theme(light: bool) {
             let old = t.icon;
             t.icon = load_notify_icon(light, small_icon_size());
             t.light = light;
-            let data = base_data(t);
+            if t.added {
+                let data = base_data(t);
+                unsafe {
+                    let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
+                }
+            }
             unsafe {
-                let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
                 if !old.is_invalid() {
                     let _ = DestroyIcon(old);
                 }
@@ -215,6 +264,9 @@ pub fn update_tip() {
     let Some(tip) = tip else { return };
     TRAY.with(|c| {
         if let Some(t) = c.borrow().as_ref() {
+            if !t.added {
+                return;
+            }
             let mut data = base_data(t);
             copy_wide(&mut data.szTip, &tip);
             unsafe {
@@ -225,19 +277,36 @@ pub fn update_tip() {
 }
 
 /// Balloon notification (`ShowNotifyTip`).
-pub fn notify(title: &str, message: &str) {
-    TRAY.with(|c| {
-        if let Some(t) = c.borrow().as_ref() {
+///
+/// Windows only shows a balloon while the icon is in the notification area, so a hidden
+/// icon is added for the balloon. Returns true when that icon should be removed again
+/// after a few seconds (`DELETE_NOTIFY_ICON_TIMER`).
+pub fn notify(title: &str, message: &str) -> bool {
+    let temporary = !wants_icon();
+    let sent = TRAY.with(|c| {
+        let mut slot = c.borrow_mut();
+        let Some(t) = slot.as_mut() else {
+            return false;
+        };
+        if !t.added {
             let mut data = base_data(t);
-            data.uFlags |= NIF_INFO;
-            data.dwInfoFlags = NIIF_INFO;
-            copy_wide(&mut data.szInfoTitle, title);
-            copy_wide(&mut data.szInfo, message);
-            unsafe {
-                let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
-            }
+            copy_wide(&mut data.szTip, &tr("APP_NAME"));
+            t.added = unsafe { Shell_NotifyIconW(NIM_ADD, &data).as_bool() };
         }
+        if !t.added {
+            return false;
+        }
+        let mut data = base_data(t);
+        data.uFlags |= NIF_INFO;
+        data.dwInfoFlags = NIIF_INFO;
+        copy_wide(&mut data.szInfoTitle, title);
+        copy_wide(&mut data.szInfo, message);
+        unsafe {
+            let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
+        }
+        true
     });
+    sent && temporary
 }
 
 pub fn destroy() {
