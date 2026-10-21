@@ -14,29 +14,31 @@
 
 ## 构建
 
-需要 MSVC 工具链（Visual Studio 生成工具，含 Windows SDK）、Rust stable、[.NET SDK 10+](https://dotnet.microsoft.com/download)，以及 [.NET Framework 4.x 开发人员包](https://dotnet.microsoft.com/download/dotnet-framework)（提供 `metahost.h` / `mscoree.h`；运行时仍用系统自带的 .NET Framework 4）。
+需要 MSVC 工具链（Visual Studio 生成工具，含 Windows SDK）、Rust stable、[.NET SDK 10+](https://dotnet.microsoft.com/download)，以及 [.NET Framework 4.7.2](https://dotnet.microsoft.com/download/dotnet-framework)。
 
 支持的 Rust target：
 
 | Target | 说明 |
 | --- | --- |
-| `x86_64-pc-windows-msvc` | 常规 x64（默认宿主） |
-| `aarch64-pc-windows-msvc` | Windows on Arm（原生 ARM64）；需在 Visual Studio Installer 勾选 **MSVC C++ ARM64/ARM64EC 生成工具**（`Microsoft.VisualStudio.Component.VC.Tools.ARM64`，提供 `Hostx64\arm64\cl.exe`）与 Windows 11 SDK |
+| `x86_64-pc-windows-msvc` | 常规 x64 默认宿主 |
+| `aarch64-pc-windows-msvc` | Windows on Arm 原生 ARM64；需在 Visual Studio Installer 勾选 **MSVC C++ ARM64 生成工具**（`Microsoft.VisualStudio.Component.VC.Tools.ARM64`，提供 `Hostx64\arm64\cl.exe`）与 Windows 11 SDK |
 
 ```powershell
+# x64：
 cargo build --release
-# 或交叉编译 WoA：
+# ARM64：
 rustup target add aarch64-pc-windows-msvc
 cargo build --release --target aarch64-pc-windows-msvc
 ```
 
 ## 安装包
 
-同样需要 .NET SDK 10+（用于全局工具 `vpk`）。在仓库根目录执行：
+同样需要 .NET SDK 10+ 用于全局工具 `vpk`。在仓库根目录执行：
 
 ```powershell
+# x64：
 cargo setup
-# WoA / 原生 ARM64：
+# ARM64：
 cargo setup -- -Target aarch64-pc-windows-msvc
 ```
 

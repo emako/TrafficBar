@@ -402,14 +402,14 @@ fn help_url(kind: u32) -> String {
             }
         }
         ID_FAQ => format!("{host}{}", if zh { "Help.md" } else { "Help_en-us.md" }),
-        _ => format!(
-            "{host}UpdateLog/{}",
-            if zh {
-                "update_log.md"
+        _ => {
+            let log_host = if gitee {
+                "https://gitee.com/emako/TrafficBar/blob/master/"
             } else {
-                "update_log_en-us.md"
-            }
-        ),
+                "https://github.com/emako/TrafficBar/blob/master/"
+            };
+            format!("{log_host}CHANGELOG.md")
+        }
     }
 }
 
