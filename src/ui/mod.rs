@@ -21,11 +21,18 @@ use gpui::{
 };
 use gpui_component::{Root, Theme, ThemeMode};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::HiDpi::GetSystemMetricsForDpi;
+use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    ICON_BIG, ICON_SMALL, IsIconic, IsWindowVisible, SM_CXICON, SM_CXSMICON, SW_SHOWNORMAL,
-    SendMessageW, SetForegroundWindow, ShowWindow, WM_SETICON,
+    EnableMenuItem, GWL_STYLE, GetSystemMenu, GetWindowLongPtrW, HMENU, HTCAPTION, HTSYSMENU,
+    ICON_BIG, ICON_SMALL, IsIconic, IsWindowVisible, IsZoomed, MENU_ITEM_FLAGS, MF_ENABLED,
+    MF_GRAYED, PostMessageW, SC_CLOSE, SC_MAXIMIZE, SC_MINIMIZE, SC_MOVE, SC_RESTORE, SC_SIZE,
+    SM_CXICON, SM_CXSMICON, SW_SHOWNORMAL, SendMessageW, SetForegroundWindow, SetMenuDefaultItem,
+    ShowWindow, TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenuEx,
+    WM_APP, WM_INITMENUPOPUP, WM_NCDESTROY, WM_NCRBUTTONDOWN, WM_NCRBUTTONUP, WM_NULL,
+    WM_SETICON, WM_SYSCOMMAND, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_THICKFRAME,
 };
 
 use crate::app::{self, UiCommand};
@@ -301,6 +308,7 @@ pub fn open_window<V: Render + 'static>(
         if hwnd != 0 {
             let h = HWND(hwnd as *mut _);
             set_window_icon(h);
+            install_system_menu(h);
             unsafe {
                 // The first window a process shows takes the launcher's STARTUPINFO show state.
                 if !IsWindowVisible(h).as_bool() || IsIconic(h).as_bool() {
@@ -313,4 +321,113 @@ pub fn open_window<V: Render + 'static>(
             .windows
             .push((slot, any, hwnd));
     }
+}
+
+/// Posted to the window after a caption right-click, so the button-up that
+/// opened the menu is not also the click that dismisses it.
+const WM_SHOW_SYS_MENU: u32 = WM_APP + 20;
+const SYS_MENU_SUBCLASS_ID: usize = 1;
+
+/// GPUI paints the caption in the client area and returns `HTCAPTION` from
+/// `WM_NCHITTEST`. `DefWindowProc` does not open the window menu for that
+/// caption, so show `GetSystemMenu` ourselves.
+fn install_system_menu(hwnd: HWND) {
+    unsafe {
+        if !SetWindowSubclass(hwnd, Some(system_menu_proc), SYS_MENU_SUBCLASS_ID, 0).as_bool() {
+            log::warn!("failed to install the window-menu subclass");
+        }
+    }
+}
+
+unsafe extern "system" fn system_menu_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _id: usize,
+    _data: usize,
+) -> LRESULT {
+    unsafe {
+        if msg == WM_NCDESTROY {
+            let _ = RemoveWindowSubclass(hwnd, Some(system_menu_proc), SYS_MENU_SUBCLASS_ID);
+        } else if is_caption_hit(wparam.0 as u32)
+            && (msg == WM_NCRBUTTONDOWN || msg == WM_NCRBUTTONUP)
+        {
+            if msg == WM_NCRBUTTONUP {
+                let _ = PostMessageW(Some(hwnd), WM_SHOW_SYS_MENU, WPARAM(0), lparam);
+            }
+            return LRESULT(0);
+        } else if msg == WM_SHOW_SYS_MENU {
+            show_system_menu(hwnd, lparam);
+            return LRESULT(0);
+        } else if msg == WM_INITMENUPOPUP {
+            let menu = HMENU(wparam.0 as *mut _);
+            let system = GetSystemMenu(hwnd, false);
+            if !system.is_invalid() && menu == system {
+                update_system_menu(hwnd, menu);
+                return LRESULT(0);
+            }
+        }
+        DefSubclassProc(hwnd, msg, wparam, lparam)
+    }
+}
+
+fn is_caption_hit(hit: u32) -> bool {
+    hit == HTCAPTION || hit == HTSYSMENU
+}
+
+fn show_system_menu(hwnd: HWND, at: LPARAM) {
+    let x = (at.0 as i16) as i32;
+    let y = ((at.0 >> 16) as i16) as i32;
+    crate::tray::menu::apply_menu_theme();
+    unsafe {
+        let menu = GetSystemMenu(hwnd, false);
+        if menu.is_invalid() {
+            return;
+        }
+        update_system_menu(hwnd, menu);
+        let _ = ReleaseCapture();
+        let _ = SetForegroundWindow(hwnd);
+        let cmd = TrackPopupMenuEx(
+            menu,
+            (TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY).0,
+            x,
+            y,
+            hwnd,
+            None,
+        );
+        // Lets the menu close when the next click lands outside it.
+        let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
+        if cmd.0 != 0 {
+            let _ = PostMessageW(
+                Some(hwnd),
+                WM_SYSCOMMAND,
+                WPARAM(cmd.0 as usize),
+                LPARAM(0),
+            );
+        }
+    }
+}
+
+fn update_system_menu(hwnd: HWND, menu: HMENU) {
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+        let maximized = IsZoomed(hwnd).as_bool();
+        let minimized = IsIconic(hwnd).as_bool();
+        let restored = !maximized && !minimized;
+        let can_size = style & WS_THICKFRAME.0 != 0;
+        let can_minimize = style & WS_MINIMIZEBOX.0 != 0;
+        let can_maximize = style & WS_MAXIMIZEBOX.0 != 0;
+        let _ = EnableMenuItem(menu, SC_RESTORE, menu_flag(!restored));
+        let _ = EnableMenuItem(menu, SC_MOVE, menu_flag(restored));
+        let _ = EnableMenuItem(menu, SC_SIZE, menu_flag(restored && can_size));
+        let _ = EnableMenuItem(menu, SC_MINIMIZE, menu_flag(!minimized && can_minimize));
+        let _ = EnableMenuItem(menu, SC_MAXIMIZE, menu_flag(!maximized && can_maximize));
+        let _ = EnableMenuItem(menu, SC_CLOSE, MF_ENABLED);
+        let _ = SetMenuDefaultItem(menu, SC_CLOSE, 0);
+    }
+}
+
+fn menu_flag(enabled: bool) -> MENU_ITEM_FLAGS {
+    if enabled { MF_ENABLED } else { MF_GRAYED }
 }

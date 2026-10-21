@@ -47,7 +47,7 @@ type SetPreferredAppMode = unsafe extern "system" fn(i32) -> i32;
 type FlushMenuThemes = unsafe extern "system" fn();
 
 /// `PreferredAppMode`: 2 = ForceDark, 3 = ForceLight (uxtheme ordinal 135, Windows 10 1903+).
-fn apply_menu_theme() {
+pub(crate) fn apply_menu_theme() {
     if win::windows_version().build < 18362 {
         return;
     }
