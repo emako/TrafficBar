@@ -4,7 +4,7 @@
 
 二进制默认是 `target\release\TrafficBar.exe`（宿主架构、未显式 `--target`）。交叉编译时在 `target\<triple>\release\TrafficBar.exe`。它是单实例（互斥体 `TrafficBar_SingleInstance`）：旧进程还在时再启动会直接退出。Release 无控制台（`windows_subsystem = "windows"`）。硬件监控库嵌在 exe 中，从内存加载，不再放在运行目录。目录里若还留着旧的 `TrafficBar.Hardware.exe`，构建脚本会结束该进程并删除它；残留的 `TrafficBar.Hardware.dll` 会在编译时删掉。
 
-支持的打包 target：`x86_64-pc-windows-msvc`（产物后缀 `-x64`，Velopack channel `win`）、`aarch64-pc-windows-msvc`（后缀 `-arm64`，channel `win-arm64`，`--runtime win-arm64`）。WoA 出原生 ARM64；原生 ARM64 进程不能加载原版 x64 插件 DLL。
+支持的打包 target：`x86_64-pc-windows-msvc`（产物后缀 `-x64`，Velopack channel / runtime `win-x64`，更新清单 `releases.win-x64.json`）、`aarch64-pc-windows-msvc`（后缀 `-arm64`，channel / runtime `win-arm64`，更新清单 `releases.win-arm64.json`）。WoA 出原生 ARM64；原生 ARM64 进程不能加载原版 x64 插件 DLL。
 
 ## 多语言
 

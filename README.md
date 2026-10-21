@@ -53,7 +53,7 @@ cargo setup -- -Target aarch64-pc-windows-msvc
 | `TrafficBar-1.0.0-x64.zip` | x64 Velopack 便携包（含 `Update.exe`） |
 | `TrafficBar-1.0.0-single-x64.zip` | x64 单文件绿色版，仅 `TrafficBar.exe` |
 | `TrafficBar-1.0.0-arm64.exe` / `.msi` / `.zip` / `single-arm64.zip` | 同上，原生 ARM64（Windows 11 on Arm） |
-| `releases.win.json`、`releases.win-arm64.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源（按架构分 channel） |
+| `releases.win-x64.json`、`releases.win-arm64.json`、`*-full.nupkg`（及可选 delta） | 程序内「检查更新」用的更新源（channel 与 runtime 同名：`win-x64` / `win-arm64`） |
 
 发布到 GitHub / Gitee Release 时请附上上述安装包与更新源文件。安装包目前未代码签名，SmartScreen 可能拦截。
 

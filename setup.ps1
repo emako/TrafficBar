@@ -60,7 +60,7 @@ switch ($Target) {
     "x86_64-pc-windows-msvc" {
         $archSuffix = "x64"
         $vpkRuntime = "win-x64"
-        $vpkChannel = "win"
+        $vpkChannel = "win-x64"
         $framework = "net472,vcredist143-x64"
     }
     "aarch64-pc-windows-msvc" {
@@ -208,7 +208,7 @@ Get-ChildItem -LiteralPath $archOutDir -Filter "assets*.json" -File | ForEach-Ob
     }
     [System.IO.File]::WriteAllText($_.FullName, $json, $utf8)
 }
-# Channel-specific feed (releases.win.json / releases.win-arm64.json) already uses the channel name.
+# Channel-specific feed (releases.win-x64.json / releases.win-arm64.json) already uses the channel name.
 Get-ChildItem -LiteralPath $archOutDir -Filter "releases*.json" -File | ForEach-Object {
     $json = [System.IO.File]::ReadAllText($_.FullName)
     $changed = $false
@@ -255,8 +255,15 @@ Get-ChildItem -LiteralPath $archOutDir -File | Where-Object {
     }
 }
 
-# Flatten into target\publish for CI / release upload. Drop stale unsuffixed names from older packs.
-foreach ($stale in @("RELEASES", "TrafficBar-$version-full.nupkg")) {
+# Flatten into target\publish for CI / release upload. Drop stale names from older packs,
+# including the previous x64 channel (`win` / releases.win.json).
+foreach ($stale in @(
+        "RELEASES",
+        "RELEASES.win",
+        "releases.win.json",
+        "assets.win.json",
+        "TrafficBar-$version-full.nupkg"
+    )) {
     $path = Join-Path $outDir $stale
     if (Test-Path -LiteralPath $path) {
         Remove-Item -LiteralPath $path -Force
