@@ -1,9 +1,16 @@
+<p align="center">
+  <img src="src/assets/icons/app.svg" width="88" alt="TrafficBar">
+</p>
+
+
 # TrafficBar
 
-[![Badge](https://img.shields.io/badge/link-996.icu-%23FF4D5B.svg?style=flat-square)](https://996.icu/#/en_US)
-[![LICENSE](https://img.shields.io/badge/license-Anti%20996-blue.svg?style=flat-square)](https://github.com/emako/TrafficBar/blob/master/LICENSE)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/emako/TrafficBar/release.yml?branch=master&label=Release%20CI&logo=github&style=flat-square)](https://github.com/emako/TrafficBar/actions?query=workflow:"release")
-[![GitHub release](https://img.shields.io/github/release/emako/TrafficBar.svg?style=flat-square)](https://github.com/emako/TrafficBar/releases/latest)
+<p align="center">
+  <a href="https://996.icu/#/en_US"><img src="https://img.shields.io/badge/link-996.icu-%23FF4D5B.svg?style=flat-square" alt="996.icu"></a>
+  <a href="https://github.com/emako/TrafficBar/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Anti%20996-blue.svg?style=flat-square" alt="Anti 996 License"></a>
+  <a href="https://github.com/emako/TrafficBar/actions?query=workflow:%22release%22"><img src="https://img.shields.io/github/actions/workflow/status/emako/TrafficBar/release.yml?branch=master&label=Release%20CI&logo=github&style=flat-square" alt="Release CI"></a>
+  <a href="https://github.com/emako/TrafficBar/releases/latest"><img src="https://img.shields.io/github/release/emako/TrafficBar.svg?style=flat-square" alt="GitHub release"></a>
+</p>
 
 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) 的任务栏窗口，用 Rust + GPUI 重写：同样常驻任务栏，内存占用比原版低得多。此外支持深色模式、去掉桌面悬浮窗，并可在 Windows 11 开启效率模式进一步压低 CPU 占用。
 
@@ -11,6 +18,28 @@
 - 选项设置、显示设置、更改通知区图标、鼠标提示、历史流量、连接详情、关于、检查更新、插件管理都是 [GPUI](https://github.com/longbridge/gpui-component) 窗口。
 - 通知区图标和右键菜单是 Win32 原生实现，菜单跟随系统深浅色。
 - 极致混合架构，最终仍是单文件 `TrafficBar.exe` 运行：兼容原版 C++ 插件；硬件监控嵌入 [LibreHardwareMonitorLib](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) C# 组件库，启动时从内存加载，运行目录不额外散落 DLL。
+
+## 截图
+
+<p align="center">
+  <img src="branding/screenshot_001.png" alt="任务栏窗口：上行下行网速、CPU、内存和温度"><br>
+  <sub>任务栏窗口</sub>
+</p>
+
+<p align="center">
+  <img src="branding/screenshot_002.png" width="283" alt="右键菜单：网络连接、历史流量、显示设置、插件和选项"><br>
+  <sub>右键菜单</sub>
+</p>
+
+<p align="center">
+  <img src="branding/screenshot_003.png" width="760" alt="选项设置的任务栏窗口设置：颜色、字体、显示项目和单位"><br>
+  <sub>选项设置 · 任务栏窗口设置</sub>
+</p>
+
+<p align="center">
+  <img src="branding/screenshot_004.png" width="760" alt="选项设置的常规设置：更新、语言、管理员运行、效率模式、开机启动和通知"><br>
+  <sub>选项设置 · 常规设置</sub>
+</p>
 
 ## 构建
 
