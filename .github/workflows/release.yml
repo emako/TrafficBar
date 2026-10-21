@@ -89,9 +89,8 @@ jobs:
 
           if ($env:GITHUB_REF_TYPE -eq "tag") {
             $tag = $env:GITHUB_REF_NAME
-            $expected = "v$cargo"
-            if ($tag -ne $expected) {
-              throw "Tag '$tag' does not match Cargo.toml version '$expected'"
+            if ($tag -ne $cargo) {
+              throw "Tag '$tag' does not match Cargo.toml version '$cargo'"
             }
             $name = "TrafficBar $tag"
             $prerelease = "false"
