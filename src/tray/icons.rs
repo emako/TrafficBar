@@ -18,7 +18,7 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::UI::Shell::SHCreateMemStream;
 
-const COUNT: usize = 12;
+const COUNT: usize = 13;
 
 const CONNECTION_LIGHT: &[u8] = include_bytes!("../assets/icons/menu/connection_light.ico");
 const CONNECTION_DARK: &[u8] = include_bytes!("../assets/icons/menu/connection_dark.ico");
@@ -44,6 +44,8 @@ const ADMIN_LIGHT: &[u8] = include_bytes!("../assets/icons/menu/admin_light.ico"
 const ADMIN_DARK: &[u8] = include_bytes!("../assets/icons/menu/admin_dark.ico");
 const RESTART_LIGHT: &[u8] = include_bytes!("../assets/icons/menu/restart_light.ico");
 const RESTART_DARK: &[u8] = include_bytes!("../assets/icons/menu/restart_dark.ico");
+const NOTIFY_ICON_LIGHT: &[u8] = include_bytes!("../assets/icons/menu/notify_icon_light.ico");
+const NOTIFY_ICON_DARK: &[u8] = include_bytes!("../assets/icons/menu/notify_icon_dark.ico");
 
 /// Bitmaps for one theme. Handles stay alive for the process; the menu does not own them.
 #[derive(Clone, Copy)]
@@ -60,6 +62,7 @@ pub struct Set {
     pub exit: HBITMAP,
     pub admin: HBITMAP,
     pub restart: HBITMAP,
+    pub notify_icon: HBITMAP,
 }
 
 impl Set {
@@ -77,6 +80,7 @@ impl Set {
             exit: hbmp(bits[9]),
             admin: hbmp(bits[10]),
             restart: hbmp(bits[11]),
+            notify_icon: hbmp(bits[12]),
         }
     }
 }
@@ -150,6 +154,8 @@ fn ico(dark: bool, index: usize) -> &'static [u8] {
         (true, 10) => ADMIN_DARK,
         (false, 11) => RESTART_LIGHT,
         (true, 11) => RESTART_DARK,
+        (false, 12) => NOTIFY_ICON_LIGHT,
+        (true, 12) => NOTIFY_ICON_DARK,
         _ => &[],
     }
 }

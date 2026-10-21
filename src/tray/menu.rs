@@ -290,7 +290,7 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             menu,
             ID_CHANGE_NOTIFY_ICON,
             &trm("TXT_CHANGE_NOTIFY_ICON"),
-            none,
+            icons.notify_icon,
         );
         append(
             menu,
