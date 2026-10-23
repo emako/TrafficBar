@@ -95,7 +95,7 @@ npx --prefix "D:\GitHub\svg2png" ts-node "D:\GitHub\svg2png\src\cli.ts" <input.s
 一键流水线（推荐）：
 
 ```powershell
-python .cursor/skills/fluent-icon-providor/scripts/make_menu_icon.py `
+python docs/skills/fluent-icon-providor/scripts/make_menu_icon.py `
   --glyph settings `
   --stem settings `
   --svg2png "D:\GitHub\svg2png"
@@ -106,7 +106,7 @@ python .cursor/skills/fluent-icon-providor/scripts/make_menu_icon.py `
 ### 4. PNG → ICO
 
 ```powershell
-python .cursor/skills/fluent-icon-providor/scripts/pack_menu_ico.py `
+python docs/skills/fluent-icon-providor/scripts/pack_menu_ico.py `
   --out src/assets/icons/menu/settings_light.ico `
   --png 16=path\to\16.png --png 20=... --png 24=... --png 28=... --png 32=...
 ```
@@ -114,7 +114,7 @@ python .cursor/skills/fluent-icon-providor/scripts/pack_menu_ico.py `
 或对某目录（内含 `16.png` … `32.png`）：
 
 ```powershell
-python .cursor/skills/fluent-icon-providor/scripts/pack_menu_ico.py `
+python docs/skills/fluent-icon-providor/scripts/pack_menu_ico.py `
   --out src/assets/icons/menu/settings_light.ico `
   --dir path\to\light_pngs
 ```
@@ -130,8 +130,8 @@ python .cursor/skills/fluent-icon-providor/scripts/pack_menu_ico.py `
 ### 6. 校验
 
 ```powershell
-python .cursor/skills/fluent-icon-providor/scripts/pack_menu_ico.py --verify src/assets/icons/menu/<stem>_light.ico
-python .cursor/skills/fluent-icon-providor/scripts/pack_menu_ico.py --verify src/assets/icons/menu/<stem>_dark.ico
+python docs/skills/fluent-icon-providor/scripts/pack_menu_ico.py --verify src/assets/icons/menu/<stem>_light.ico
+python docs/skills/fluent-icon-providor/scripts/pack_menu_ico.py --verify src/assets/icons/menu/<stem>_dark.ico
 ```
 
 期望：5 帧、顺序 16/20/24/28/32、均为 PNG、32bpp。
