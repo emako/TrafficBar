@@ -123,6 +123,21 @@ jobs:
           $body | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      # Rolling `latest` must be recreated: updating an existing release keeps the
+      # old tag object, so target_commitish alone would not move `latest` forward.
+      - name: Delete existing latest release and tag
+        if: steps.meta.outputs.tag == 'latest'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Prefer deleting the release (and its tag). Ignore "not found".
+          gh release delete latest --yes --cleanup-tag 2>&1 | ForEach-Object { Write-Host $_ }
+          # If only a dangling tag remains (no release), drop the ref too.
+          gh api --method DELETE "repos/$($env:GITHUB_REPOSITORY)/git/refs/tags/latest" 2>&1 |
+            ForEach-Object { Write-Host $_ }
+          exit 0
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
