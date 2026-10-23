@@ -33,7 +33,7 @@ impl Render for AboutView {
                             .child(format!("TrafficBar {}", env!("CARGO_PKG_VERSION"))),
                     )
                     .child(div().text_sm().child(tr("BAR_BASED_ON")))
-                    .child(muted("Copyright (C) 2017-2026 By ZhongYang", cx))
+                    .child(muted("Copyright (C) 2026 by ema", cx))
                     .child(muted(
                         format!(
                             "Windows {}.{} build {}{}",
@@ -90,7 +90,7 @@ impl Render for AboutView {
 }
 
 pub fn open(cx: &mut App) {
-    let title = tr("TXT_TITLE_ABOUT").replace("TrafficMonitor", "TrafficBar");
+    let title = tr("TXT_TITLE_ABOUT");
     super::open_window(
         Slot::About,
         title,

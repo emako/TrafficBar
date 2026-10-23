@@ -2,7 +2,7 @@
 name = "traffic-bar"
 version = "1.0.0"
 edition = "2024"
-description = "TrafficMonitor taskbar window rewritten with Rust + GPUI"
+description = "TrafficBar taskbar window rewrite in Rust + GPUI"
 license-file = "LICENSE"
 build = "build.rs"
 default-run = "TrafficBar"
