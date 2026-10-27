@@ -844,13 +844,16 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
         WM_LBUTTONUP => {
             let (x, y) = lparam_point(lparam);
             let key = with(|t| t.hit_item(x, y)).flatten();
+            crate::memory::on_taskbar_mouse(&key, false);
             plugin_mouse(&key, MouseEvent::LClicked, x, y, hwnd);
             LRESULT(0)
         }
         WM_LBUTTONDBLCLK => {
             let (x, y) = lparam_point(lparam);
             let key = with(|t| t.hit_item(x, y)).flatten();
-            if !plugin_mouse(&key, MouseEvent::DbClicked, x, y, hwnd) {
+            if !crate::memory::on_taskbar_mouse(&key, true)
+                && !plugin_mouse(&key, MouseEvent::DbClicked, x, y, hwnd)
+            {
                 crate::app::post(crate::app::MainMsg::DoubleClick);
             }
             LRESULT(0)

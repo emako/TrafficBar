@@ -22,8 +22,8 @@ use super::common::{
 };
 use super::display_settings::{ItemOrderModel, hardware_filter};
 use crate::config::{
-    DoubleClickAction, MONITOR_TIME_SPAN_MAX, MONITOR_TIME_SPAN_MIN, MemoryDisplay, Runtime,
-    Settings, SpeedUnit,
+    DoubleClickAction, MONITOR_TIME_SPAN_MAX, MONITOR_TIME_SPAN_MIN, MemoryCleanTrigger,
+    MemoryDisplay, Runtime, Settings, SpeedUnit,
 };
 use crate::display_item::{ALL_BUILTIN, DisplayItem, HardwareItem, ItemKey, all_items};
 use crate::i18n::{tr, tr_plain};
@@ -267,6 +267,9 @@ impl OptionsView {
         }
         draft.general.auto_run = self.auto_run;
         draft.general.auto_run_by_task_scheduler = self.auto_run_task;
+        draft.general.memory_clean_mask =
+            crate::memory::normalize_mask(draft.general.memory_clean_mask);
+        draft.general.memory_clean_threshold = draft.general.memory_clean_threshold.clamp(1, 100);
 
         if !crate::win::is_portable_edition() {
             draft.general.portable_mode = false;
@@ -1325,6 +1328,174 @@ impl OptionsView {
             .into_any_element()
     }
 
+    fn memory_area(
+        &self,
+        me: &WeakEntity<Self>,
+        id: &'static str,
+        bit: u32,
+        key: &'static str,
+        cx: &App,
+    ) -> AnyElement {
+        let on = self.draft.general.memory_clean_mask & bit != 0;
+        let m = me.clone();
+        check(
+            id,
+            tr(key),
+            on,
+            false,
+            false,
+            move |v, w, cx| {
+                Self::update(&m, w, cx, |s, _, _| {
+                    let mask = &mut s.draft.general.memory_clean_mask;
+                    if v {
+                        *mask |= bit;
+                    } else {
+                        *mask &= !bit;
+                    }
+                })
+            },
+            cx,
+        )
+    }
+
+    /// Memory cleaning. Sits between autostart and notifications on the general page.
+    fn memory_clean_group(
+        &self,
+        me: &WeakEntity<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let g = &self.draft.general;
+        let m = me.clone();
+        let trigger = g.memory_clean_trigger;
+        let threshold = trigger == MemoryCleanTrigger::Threshold;
+        let areas = [
+            (
+                "mc-working-set",
+                crate::memory::WORKING_SET,
+                "TXT_MEMORY_CLEAN_WORKING_SET",
+            ),
+            (
+                "mc-system-cache",
+                crate::memory::SYSTEM_FILE_CACHE,
+                "TXT_MEMORY_CLEAN_SYSTEM_FILE_CACHE",
+            ),
+            (
+                "mc-modified-cache",
+                crate::memory::MODIFIED_FILE_CACHE,
+                "TXT_MEMORY_CLEAN_MODIFIED_FILE_CACHE",
+            ),
+            (
+                "mc-standby0",
+                crate::memory::STANDBY_PRIORITY0,
+                "TXT_MEMORY_CLEAN_STANDBY_PRIORITY0",
+            ),
+            (
+                "mc-registry",
+                crate::memory::REGISTRY_CACHE,
+                "TXT_MEMORY_CLEAN_REGISTRY",
+            ),
+            (
+                "mc-combine",
+                crate::memory::COMBINE_MEMORY_LISTS,
+                "TXT_MEMORY_CLEAN_COMBINE",
+            ),
+            (
+                "mc-standby",
+                crate::memory::STANDBY_LIST,
+                "TXT_MEMORY_CLEAN_STANDBY",
+            ),
+            (
+                "mc-modified-list",
+                crate::memory::MODIFIED_PAGE_LIST,
+                "TXT_MEMORY_CLEAN_MODIFIED_LIST",
+            ),
+        ];
+        let mut left = v_flex().gap_2().flex_1().min_w_0();
+        let mut right = v_flex().gap_2().flex_1().min_w_0();
+        for (i, (id, bit, key)) in areas.into_iter().enumerate() {
+            let item = self.memory_area(me, id, bit, key, cx);
+            if i % 2 == 0 {
+                left = left.child(item);
+            } else {
+                right = right.child(item);
+            }
+        }
+        group(tr("TXT_RELEASE_MEMORY"), cx)
+            .child(
+                row()
+                    .child(label(tr("TXT_MEMORY_CLEAN_TRIGGER")))
+                    .child(choice(
+                        "memory-clean-trigger",
+                        vec![
+                            tr("TXT_MEMORY_CLEAN_DOUBLE_CLICK"),
+                            tr("TXT_MEMORY_CLEAN_SINGLE_CLICK"),
+                            tr("TXT_MEMORY_CLEAN_THRESHOLD"),
+                        ],
+                        trigger as usize,
+                        false,
+                        {
+                            let m = m.clone();
+                            move |i, w, cx| {
+                                Self::update(&m, w, cx, |s, _, _| {
+                                    s.draft.general.memory_clean_trigger = match i {
+                                        1 => MemoryCleanTrigger::Click,
+                                        2 => MemoryCleanTrigger::Threshold,
+                                        _ => MemoryCleanTrigger::DoubleClick,
+                                    }
+                                })
+                            }
+                        },
+                    ))
+                    .when(threshold, |r| {
+                        let m1 = m.clone();
+                        r.child(stepper(
+                            &self.steppers,
+                            "memory-clean-threshold",
+                            g.memory_clean_threshold,
+                            1,
+                            100,
+                            1,
+                            false,
+                            move |v, w, cx| {
+                                Self::update(&m1, w, cx, |s, _, _| {
+                                    s.draft.general.memory_clean_threshold = v
+                                })
+                            },
+                            window,
+                            cx,
+                        ))
+                        .child(label(tr("TXT_MEMORY_CLEAN_THRESHOLD_SUFFIX")))
+                    })
+                    .when(!self.rt.elevated, |r| r.child(admin_mark("memory-clean-admin", cx))),
+            )
+            .when(threshold, |g| {
+                g.child(muted(tr("TXT_MEMORY_CLEAN_INTERVAL_HINT"), cx))
+            })
+            .child(label(tr("TXT_MEMORY_CLEAN_AREAS")))
+            .child(
+                h_flex()
+                    .w_full()
+                    .gap_4()
+                    .items_start()
+                    .child(left)
+                    .child(right),
+            )
+            .child(muted(tr("TXT_MEMORY_CLEAN_FREEZE_HINT"), cx))
+            .child(check(
+                "memory-clean-notify",
+                tr("TXT_MEMORY_CLEAN_NOTIFY"),
+                g.memory_clean_notify,
+                false,
+                false,
+                move |v, w, cx| {
+                    Self::update(&m, w, cx, |s, _, _| s.draft.general.memory_clean_notify = v)
+                },
+                cx,
+            ))
+            .into_any_element()
+    }
+
     fn notify_group(
         &self,
         me: &WeakEntity<Self>,
@@ -2174,6 +2345,7 @@ impl Render for OptionsView {
                     )
                     .into_any_element(),
                 self.auto_run_group(&me, cx),
+                self.memory_clean_group(&me, window, cx),
                 self.notify_group(&me, window, cx),
                 self.hardware_group(&me, cx),
                 self.advanced_group(&me, window, cx),

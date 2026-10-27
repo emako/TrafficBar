@@ -6,6 +6,7 @@ mod display_item;
 mod format;
 mod http;
 mod i18n;
+mod memory;
 mod monitor;
 mod notify_icon;
 mod plugin;

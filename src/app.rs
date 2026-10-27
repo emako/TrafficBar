@@ -88,10 +88,28 @@ struct Ticks {
     notify_times: [i64; 5],
     last_today_traffic: u64,
     reopen_pending: bool,
+    /// Main-timer tick of the last automatic memory clean. 0 means none yet.
+    last_memory_clean: u64,
 }
 
 fn main_hwnd() -> HWND {
     HWND(MAIN_HWND.load(Ordering::Relaxed) as *mut _)
+}
+
+/// Balloon from any thread. The main window shows it on `WM_APP_MONITOR`.
+pub fn post_notify(title: String, message: String) {
+    let h = MAIN_HWND.load(Ordering::Relaxed);
+    NOTIFY_QUEUE.lock().unwrap().push_back((title, message));
+    if h != 0 {
+        unsafe {
+            let _ = PostMessageW(
+                Some(HWND(h as *mut _)),
+                WM_APP_MONITOR,
+                WPARAM(0),
+                LPARAM(0),
+            );
+        }
+    }
 }
 
 pub fn send_ui(cmd: UiCommand) {
@@ -487,6 +505,7 @@ fn on_main_timer() {
     });
     check_theme();
     check_notifications(tick);
+    check_memory_auto(tick);
     tray::update_tip();
 
     if tick % 10 == 1 {
@@ -639,6 +658,27 @@ fn check_notifications(tick: u64) {
     });
     for p in pending {
         show_notify(&title, &p);
+    }
+}
+
+fn check_memory_auto(tick: u64) {
+    let (mode, threshold, usage) = state::try_with(|s| {
+        (
+            s.settings.general.memory_clean_trigger,
+            s.settings.general.memory_clean_threshold,
+            s.snapshot.memory_usage,
+        )
+    })
+    .unwrap_or((config::MemoryCleanTrigger::DoubleClick, 95, 0));
+    if mode != config::MemoryCleanTrigger::Threshold || usage < threshold {
+        return;
+    }
+    let due = TICKS.with(|t| {
+        let last = t.borrow().last_memory_clean;
+        last == 0 || tick.saturating_sub(last) >= crate::memory::AUTO_COOLDOWN_SEC
+    });
+    if due && crate::memory::release(false) {
+        TICKS.with(|t| t.borrow_mut().last_memory_clean = tick);
     }
 }
 

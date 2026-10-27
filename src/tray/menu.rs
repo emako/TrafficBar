@@ -36,6 +36,7 @@ const ID_CHECK_UPDATE: u32 = 124;
 const ID_RESTART_AS_ADMIN: u32 = 130;
 const ID_RESTART: u32 = 132;
 const ID_EXIT: u32 = 131;
+const ID_RELEASE_MEMORY: u32 = 133;
 const ID_PLUGIN_OPTIONS: u32 = 140;
 const ID_PLUGIN_DETAIL: u32 = 141;
 const ID_CONNECTION_BASE: u32 = 1000;
@@ -282,6 +283,12 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
         );
         item(
             menu,
+            ID_RELEASE_MEMORY,
+            &trm("TXT_RELEASE_MEMORY"),
+            icons.memory,
+        );
+        item(
+            menu,
             ID_PLUGIN_MANAGE,
             &trm("TXT_PLUGIN_MANAGE"),
             icons.plugins,
@@ -459,6 +466,9 @@ fn execute(owner: HWND, id: u32, plugin: Option<usize>) {
         ID_TRAFFIC_HISTORY => app::send_ui(UiCommand::OpenHistory),
         ID_DISPLAY_SETTINGS => app::send_ui(UiCommand::OpenDisplaySettings),
         ID_TASK_MANAGER => app::open_task_manager(),
+        ID_RELEASE_MEMORY => {
+            crate::memory::release(true);
+        }
         ID_PLUGIN_MANAGE => app::send_ui(UiCommand::OpenPluginManager),
         ID_OPTIONS => app::send_ui(UiCommand::OpenOptions(0)),
         ID_CHANGE_NOTIFY_ICON => app::send_ui(UiCommand::OpenIconSelect),

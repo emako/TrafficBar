@@ -302,6 +302,28 @@ pub struct NotifyTip {
     pub tip_value: i32,
 }
 
+/// How a memory clean starts, besides the context-menu command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(i32)]
+pub enum MemoryCleanTrigger {
+    /// Double-click the memory label on the taskbar.
+    DoubleClick = 0,
+    /// Click the memory label on the taskbar.
+    Click = 1,
+    /// Release while usage stays at or above `memory_clean_threshold`.
+    Threshold = 2,
+}
+
+impl MemoryCleanTrigger {
+    pub fn from_i32(v: i32) -> Self {
+        match v {
+            1 => Self::Click,
+            2 => Self::Threshold,
+            _ => Self::DoubleClick,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneralSettings {
     pub check_update_when_start: bool,
@@ -337,6 +359,14 @@ pub struct GeneralSettings {
     pub cpu_core_name: String,
     pub hardware_monitor_item: u32,
     pub connections_hide: Vec<String>,
+    /// Context menu always offers a clean. This chooses the extra trigger.
+    pub memory_clean_trigger: MemoryCleanTrigger,
+    /// Used when `memory_clean_trigger` is [`MemoryCleanTrigger::Threshold`].
+    pub memory_clean_threshold: i32,
+    /// Bit mask of regions to clean. See `crate::memory`.
+    pub memory_clean_mask: u32,
+    /// Balloon after a successful clean.
+    pub memory_clean_notify: bool,
 }
 
 impl GeneralSettings {
@@ -616,6 +646,20 @@ impl Settings {
             cpu_core_name: ini.get_string("general", "cpu_core_name", "Core Average"),
             hardware_monitor_item: ini.get_u32("general", "hardware_monitor_item", 0),
             connections_hide: ini.get_string_list("general", "connections_hide"),
+            memory_clean_trigger: MemoryCleanTrigger::from_i32(ini.get_int(
+                "memory_clean",
+                "trigger",
+                0,
+            )),
+            memory_clean_threshold: ini
+                .get_int("memory_clean", "threshold", 95)
+                .clamp(1, 100),
+            memory_clean_mask: crate::memory::normalize_mask(ini.get_u32(
+                "memory_clean",
+                "mask",
+                crate::memory::MASK_DEFAULT,
+            )),
+            memory_clean_notify: ini.get_bool("memory_clean", "notify", true),
         };
 
         let mut back_color = ini.get_u32("task_bar", "task_bar_back_color", dft_back);
@@ -848,6 +892,18 @@ impl Settings {
             "auto_run_by_task_scheduler",
             g.auto_run_by_task_scheduler,
         );
+        ini.set_int(
+            "memory_clean",
+            "trigger",
+            g.memory_clean_trigger as i32,
+        );
+        ini.set_int("memory_clean", "threshold", g.memory_clean_threshold);
+        ini.set_u32(
+            "memory_clean",
+            "mask",
+            crate::memory::normalize_mask(g.memory_clean_mask),
+        );
+        ini.set_bool("memory_clean", "notify", g.memory_clean_notify);
 
         ini.set_bool("connection", "auto_select", self.cfg.auto_select);
         ini.set_bool("connection", "select_all", self.cfg.select_all);
