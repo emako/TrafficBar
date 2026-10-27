@@ -1,0 +1,9 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Own workspace so `cargo build` of TrafficBar does not build this runner,
+# and so its target dir stays out of the app's `target/`.
+[workspace]

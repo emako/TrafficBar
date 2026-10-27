@@ -1,6 +1,7 @@
 [alias]
-# cargo setup → setup.ps1 (pass-through args, e.g. cargo setup -- -Target aarch64-pc-windows-msvc)
-setup = "!powershell -NoProfile -ExecutionPolicy Bypass -File ./setup.ps1"
+# Cargo aliases only expand to subcommands, so this runs xtask, which launches setup.ps1.
+# Args pass through: cargo setup -- -Target aarch64-pc-windows-msvc
+setup = "run --quiet --manifest-path xtask/Cargo.toml --"
 
 [source.crates-io]
 replace-with = "rsproxy-sparse"

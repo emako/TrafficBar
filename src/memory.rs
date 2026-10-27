@@ -183,7 +183,7 @@ pub fn on_taskbar_mouse(key: &Option<ItemKey>, double: bool) -> bool {
                 release(true);
                 true
             }
-            MemoryCleanTrigger::Threshold => false,
+            MemoryCleanTrigger::Threshold | MemoryCleanTrigger::None => false,
         };
     }
     if IGNORE_UP.swap(false, Ordering::Relaxed) {

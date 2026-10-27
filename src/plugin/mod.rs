@@ -372,10 +372,6 @@ impl PluginHost {
                 .file_name()
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            // Memory cleaning is built in. Loading this plugin would put 「立即释放」 back on the taskbar.
-            if file_name.eq_ignore_ascii_case("MemReduct.dll") {
-                continue;
-            }
             let mut info = PluginInfo {
                 file_name: file_name.clone(),
                 file_path: path.clone(),

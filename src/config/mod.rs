@@ -312,6 +312,8 @@ pub enum MemoryCleanTrigger {
     Click = 1,
     /// Release while usage stays at or above `memory_clean_threshold`.
     Threshold = 2,
+    /// Menu command only. Clicks and the usage threshold do not release.
+    None = 3,
 }
 
 impl MemoryCleanTrigger {
@@ -319,6 +321,7 @@ impl MemoryCleanTrigger {
         match v {
             1 => Self::Click,
             2 => Self::Threshold,
+            3 => Self::None,
             _ => Self::DoubleClick,
         }
     }

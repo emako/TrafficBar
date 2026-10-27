@@ -1,4 +1,5 @@
 /target
+/xtask/target
 *.log
 .vs
 # C# build outputs (do not ignore Rust src/bin/)

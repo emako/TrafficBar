@@ -1431,6 +1431,7 @@ impl OptionsView {
                             tr("TXT_MEMORY_CLEAN_DOUBLE_CLICK"),
                             tr("TXT_MEMORY_CLEAN_SINGLE_CLICK"),
                             tr("TXT_MEMORY_CLEAN_THRESHOLD"),
+                            tr("IDS_NONE"),
                         ],
                         trigger as usize,
                         false,
@@ -1441,6 +1442,7 @@ impl OptionsView {
                                     s.draft.general.memory_clean_trigger = match i {
                                         1 => MemoryCleanTrigger::Click,
                                         2 => MemoryCleanTrigger::Threshold,
+                                        3 => MemoryCleanTrigger::None,
                                         _ => MemoryCleanTrigger::DoubleClick,
                                     }
                                 })
