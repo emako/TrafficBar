@@ -1,11 +1,18 @@
 use std::ffi::c_void;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND, RECT};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, LUID, RECT};
 use windows::Win32::Globalization::{CP_ACP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
 use windows::Win32::Graphics::Dwm::DwmGetColorizationColor;
 use windows::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromRect};
-use windows::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
+use windows::Win32::Security::{
+    AdjustTokenPrivileges, DuplicateTokenEx, GetTokenInformation, LookupPrivilegeValueW,
+    LUID_AND_ATTRIBUTES, SE_ASSIGNPRIMARYTOKEN_NAME, SE_IMPERSONATE_NAME, SE_INCREASE_QUOTA_NAME,
+    SE_PRIVILEGE_ENABLED, TOKEN_ADJUST_DEFAULT, TOKEN_ADJUST_PRIVILEGES, TOKEN_ADJUST_SESSIONID,
+    TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE, TOKEN_ELEVATION, TOKEN_PRIVILEGES, TOKEN_QUERY,
+    SecurityImpersonation, TokenElevation, TokenPrimary,
+};
 use windows::Win32::System::Com::{
     COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
 };
@@ -13,19 +20,22 @@ use windows::Win32::System::Registry::{
     HKEY, HKEY_CURRENT_USER, KEY_READ, RRF_RT_REG_DWORD, RegCloseKey, RegGetValueW, RegOpenKeyExW,
     RegQueryValueExW,
 };
-use windows::Win32::System::SystemInformation::OSVERSIONINFOW;
+use windows::Win32::System::SystemInformation::{GetWindowsDirectoryW, OSVERSIONINFOW};
 use windows::Win32::System::Threading::{
-    GetCurrentProcess, IDLE_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS, OpenProcessToken,
-    PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-    PROCESS_POWER_THROTTLING_STATE, ProcessPowerThrottling, SetPriorityClass,
-    SetProcessInformation,
+    CREATE_PROCESS_LOGON_FLAGS, CreateProcessAsUserW, CreateProcessWithTokenW, GetCurrentProcess,
+    IDLE_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS, OpenProcess, OpenProcessToken,
+    PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+    PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
+    PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
+    ProcessPowerThrottling, STARTUPINFOW, SetPriorityClass, SetProcessInformation,
+    TerminateProcess, WaitForSingleObject,
 };
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MESSAGEBOX_STYLE, MessageBoxW, SW_SHOWNORMAL,
+    FindWindowW, GetWindowThreadProcessId, SW_SHOWNORMAL,
 };
-use windows::core::{PCWSTR, w};
+use windows::core::{PCWSTR, PWSTR, w};
 
 pub fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -448,20 +458,6 @@ pub fn shell_open(target: &str) {
     });
 }
 
-pub fn message_box(owner: Option<HWND>, text: &str, warning: bool) {
-    let t = wide(text);
-    let caption = wide("TrafficBar");
-    let style: MESSAGEBOX_STYLE = MB_OK
-        | if warning {
-            MB_ICONWARNING
-        } else {
-            MB_ICONINFORMATION
-        };
-    unsafe {
-        MessageBoxW(owner, PCWSTR(t.as_ptr()), PCWSTR(caption.as_ptr()), style);
-    }
-}
-
 pub fn dpi_from_rect(rect: &RECT) -> Option<u32> {
     unsafe {
         let mon = MonitorFromRect(rect, MONITOR_DEFAULTTONEAREST);
@@ -486,4 +482,253 @@ pub fn theme_color() -> u32 {
         }
     }
     0x00D77800
+}
+
+static EXPLORER_RESTARTING: AtomicBool = AtomicBool::new(false);
+
+/// Ends `explorer.exe` and starts it again on the shell's own token, so an elevated
+/// TrafficBar does not leave an elevated shell behind. Runs on a background thread.
+pub fn restart_explorer() {
+    if EXPLORER_RESTARTING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let spawned = std::thread::Builder::new()
+        .name("restart-explorer".into())
+        .spawn(|| {
+            restart_explorer_blocking();
+            EXPLORER_RESTARTING.store(false, Ordering::Release);
+        });
+    if let Err(e) = spawned {
+        EXPLORER_RESTARTING.store(false, Ordering::Release);
+        log::warn!("restart explorer thread failed: {e}");
+    }
+}
+
+fn restart_explorer_blocking() {
+    let dir = windows_dir();
+    let exe = dir.join("explorer.exe");
+    let exe_s = exe.to_string_lossy().into_owned();
+    let dir_s = dir.to_string_lossy().into_owned();
+
+    let Some(tray) = (unsafe { FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null()).ok() }) else {
+        log::warn!("Shell_TrayWnd is gone; starting explorer.exe");
+        shell_execute_explorer(&exe_s, &dir_s);
+        return;
+    };
+    let mut pid = 0u32;
+    unsafe {
+        GetWindowThreadProcessId(tray, Some(&mut pid));
+    }
+    if pid == 0 {
+        log::warn!("Shell_TrayWnd has no process id; starting explorer.exe");
+        shell_execute_explorer(&exe_s, &dir_s);
+        return;
+    }
+    let access = PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE;
+    let Ok(process) = (unsafe { OpenProcess(access, false, pid) }) else {
+        log::warn!("OpenProcess(explorer) failed");
+        return;
+    };
+    let token = duplicate_primary_token(process);
+
+    let terminated = unsafe { TerminateProcess(process, 0).is_ok() };
+    if !terminated {
+        log::warn!("TerminateProcess(explorer) failed");
+        close_handle(token);
+        close_handle(Some(process));
+        return;
+    }
+    unsafe {
+        let _ = WaitForSingleObject(process, 8000);
+    }
+
+    let started = match token {
+        Some(token) => {
+            let ok = launch_with_token(token, &exe_s, &dir_s);
+            close_handle(Some(token));
+            ok
+        }
+        None => false,
+    };
+    close_handle(Some(process));
+    if !started {
+        log::warn!("starting explorer with its token failed; falling back to ShellExecute");
+        shell_execute_explorer(&exe_s, &dir_s);
+    }
+}
+
+fn duplicate_primary_token(process: HANDLE) -> Option<HANDLE> {
+    unsafe {
+        let mut token = HANDLE::default();
+        let open_access = TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY;
+        if OpenProcessToken(process, open_access, &mut token).is_err() {
+            log::warn!("OpenProcessToken(explorer) failed");
+            return None;
+        }
+        let mut primary = HANDLE::default();
+        let desired = TOKEN_ASSIGN_PRIMARY
+            | TOKEN_DUPLICATE
+            | TOKEN_QUERY
+            | TOKEN_ADJUST_DEFAULT
+            | TOKEN_ADJUST_SESSIONID;
+        let duplicated = DuplicateTokenEx(
+            token,
+            desired,
+            None,
+            SecurityImpersonation,
+            TokenPrimary,
+            &mut primary,
+        );
+        let _ = CloseHandle(token);
+        match duplicated {
+            Ok(()) => Some(primary),
+            Err(e) => {
+                log::warn!("DuplicateTokenEx failed: {e}");
+                None
+            }
+        }
+    }
+}
+
+/// `CreateProcessAsUserW` needs `SeAssignPrimaryTokenPrivilege`, which an elevated admin
+/// often does not have. `CreateProcessWithTokenW` uses `SeImpersonatePrivilege` instead.
+/// Either way the new process keeps the shell token, not TrafficBar's elevated one.
+fn launch_with_token(token: HANDLE, exe: &str, work_dir: &str) -> bool {
+    enable_privilege(SE_ASSIGNPRIMARYTOKEN_NAME);
+    enable_privilege(SE_INCREASE_QUOTA_NAME);
+    enable_privilege(SE_IMPERSONATE_NAME);
+
+    let app = wide(exe);
+    let dir = wide(work_dir);
+    let si = STARTUPINFOW {
+        cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+        ..Default::default()
+    };
+    let mut pi = PROCESS_INFORMATION::default();
+    let mut cmd = wide(&format!("\"{exe}\""));
+    let as_user = unsafe {
+        CreateProcessAsUserW(
+            Some(token),
+            PCWSTR(app.as_ptr()),
+            Some(PWSTR(cmd.as_mut_ptr())),
+            None,
+            None,
+            false,
+            PROCESS_CREATION_FLAGS(0),
+            None,
+            PCWSTR(dir.as_ptr()),
+            &si,
+            &mut pi,
+        )
+    };
+    if as_user.is_ok() {
+        close_process_info(&pi);
+        return true;
+    }
+    log::warn!("CreateProcessAsUserW failed: {}", as_user.unwrap_err());
+
+    pi = PROCESS_INFORMATION::default();
+    let mut cmd = wide(&format!("\"{exe}\""));
+    let with_token = unsafe {
+        CreateProcessWithTokenW(
+            token,
+            CREATE_PROCESS_LOGON_FLAGS(0),
+            PCWSTR(app.as_ptr()),
+            Some(PWSTR(cmd.as_mut_ptr())),
+            PROCESS_CREATION_FLAGS(0),
+            None,
+            PCWSTR(dir.as_ptr()),
+            &si,
+            &mut pi,
+        )
+    };
+    match with_token {
+        Ok(()) => {
+            close_process_info(&pi);
+            true
+        }
+        Err(e) => {
+            log::warn!("CreateProcessWithTokenW failed: {e}");
+            false
+        }
+    }
+}
+
+fn shell_execute_explorer(exe: &str, work_dir: &str) -> bool {
+    let exe_w = wide(exe);
+    let dir_w = wide(work_dir);
+    let code = unsafe {
+        let initialized =
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).is_ok();
+        let r = ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(exe_w.as_ptr()),
+            None,
+            PCWSTR(dir_w.as_ptr()),
+            SW_SHOWNORMAL,
+        );
+        if initialized {
+            CoUninitialize();
+        }
+        r.0 as isize
+    };
+    if code <= 32 {
+        log::warn!("ShellExecute explorer failed: {code}");
+        return false;
+    }
+    true
+}
+
+fn windows_dir() -> PathBuf {
+    unsafe {
+        let mut buf = [0u16; 260];
+        let n = GetWindowsDirectoryW(Some(&mut buf));
+        if n == 0 || n as usize >= buf.len() {
+            return PathBuf::from(r"C:\Windows");
+        }
+        PathBuf::from(from_wide(&buf))
+    }
+}
+
+fn enable_privilege(name: PCWSTR) {
+    unsafe {
+        let mut token = HANDLE::default();
+        if OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut token,
+        )
+        .is_err()
+        {
+            return;
+        }
+        let mut luid = LUID::default();
+        if LookupPrivilegeValueW(None, name, &mut luid).is_ok() {
+            let privileges = TOKEN_PRIVILEGES {
+                PrivilegeCount: 1,
+                Privileges: [LUID_AND_ATTRIBUTES {
+                    Luid: luid,
+                    Attributes: SE_PRIVILEGE_ENABLED,
+                }],
+            };
+            let _ = AdjustTokenPrivileges(token, false, Some(&privileges), 0, None, None);
+        }
+        let _ = CloseHandle(token);
+    }
+}
+
+fn close_process_info(pi: &PROCESS_INFORMATION) {
+    close_handle(Some(pi.hProcess));
+    close_handle(Some(pi.hThread));
+}
+
+fn close_handle(handle: Option<HANDLE>) {
+    if let Some(handle) = handle {
+        if !handle.is_invalid() {
+            unsafe {
+                let _ = CloseHandle(handle);
+            }
+        }
+    }
 }

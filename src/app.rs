@@ -56,6 +56,8 @@ pub enum UiCommand {
     Refresh,
     ThemeChanged,
     Activate,
+    Alert { text: String, warning: bool },
+    ConfirmRestartExplorer { text: String },
     Quit,
 }
 
@@ -65,7 +67,6 @@ pub enum MainMsg {
     DoubleClick,
     SettingsChanged { reopen_taskbar: bool },
     ShowPluginOptions { plugin: usize, parent: isize },
-    MessageBox { text: String, warning: bool },
 }
 
 static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
@@ -520,11 +521,13 @@ fn on_main_timer() {
                 reopen_taskbar();
             } else if retry == MAX_INSERT_RETRY + 1 {
                 let code = taskbar::with(|t| t.error_code).unwrap_or(0);
-                win::message_box(
-                    None,
-                    &format!("{}{}", tr("IDS_CONNOT_INSERT_TO_TASKBAR"), code),
-                    true,
+                let text = format!(
+                    "{}{}\r\n\r\n{}",
+                    tr("IDS_CONNOT_INSERT_TO_TASKBAR"),
+                    code,
+                    tr("IDS_RESTART_EXPLORER_PROMPT"),
                 );
+                send_ui(UiCommand::ConfirmRestartExplorer { text });
             }
         } else {
             TICKS.with(|t| t.borrow_mut().insert_retry = 0);
@@ -761,7 +764,10 @@ fn handle_main_msg(msg: MainMsg) {
                 state::with_mut(|s| s.render_mode = RenderMode::Composition);
                 reopen_taskbar();
             } else {
-                win::message_box(None, &format!("{}{:#x}", tr("BAR_D2D_FAILED"), code), true);
+                send_ui(UiCommand::Alert {
+                    text: format!("{}{:#x}", tr("BAR_D2D_FAILED"), code),
+                    warning: true,
+                });
             }
         }
         MainMsg::DoubleClick => {
@@ -812,11 +818,13 @@ fn handle_main_msg(msg: MainMsg) {
         MainMsg::ShowPluginOptions { plugin, parent } => {
             let plugins = state::with(|s| s.plugins.clone());
             if !plugins.show_options(plugin, parent) {
-                win::message_box(None, &tr("IDS_PLUGIN_NO_OPTIONS_INFO"), false);
+                send_ui(UiCommand::Alert {
+                    text: tr("IDS_PLUGIN_NO_OPTIONS_INFO"),
+                    warning: false,
+                });
             }
             taskbar::with(|t| t.apply_settings());
         }
-        MainMsg::MessageBox { text, warning } => win::message_box(None, &text, warning),
     }
 }
 
@@ -827,6 +835,10 @@ pub fn show_plugin_options(plugin: usize, parent: isize) {
 pub fn open_task_manager() {
     let p = win::system_dir().join("Taskmgr.exe");
     win::shell_open(&p.to_string_lossy());
+}
+
+pub fn restart_explorer() {
+    win::restart_explorer();
 }
 
 pub fn restart_as_admin() {
@@ -1086,7 +1098,7 @@ pub fn apply_settings(new: Settings) {
         if !s.save_settings() {
             let text = tr("IDS_CONNOT_SAVE_CONFIG_WARNING")
                 .replace("<%file_path%>", &s.settings.config_path().to_string_lossy());
-            post(MainMsg::MessageBox {
+            send_ui(UiCommand::Alert {
                 text,
                 warning: true,
             });

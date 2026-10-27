@@ -167,8 +167,12 @@ impl Render for PluginManagerView {
                                 }
                                 s.save_settings();
                             });
-                            let text = tr("IDS_RESTART_TO_APPLY_CHANGE_INFO");
-                            gpui_component::WindowExt::open_dialog(w, cx, move |dialog, _, _| dialog.alert().title(tr("APP_NAME")).child(text.clone()));
+                            super::prompt::alert(
+                                w,
+                                cx,
+                                tr("IDS_RESTART_TO_APPLY_CHANGE_INFO"),
+                                false,
+                            );
                         },
                     ),
                     div().flex_1().into_any_element(),

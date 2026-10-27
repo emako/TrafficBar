@@ -10,6 +10,7 @@ mod history;
 mod network_info;
 mod options;
 mod plugins;
+mod prompt;
 mod tooltip;
 mod update;
 
@@ -48,6 +49,8 @@ pub enum Slot {
     Update,
     PluginManager,
     PluginInfo,
+    /// Empty window that only hosts an alert or confirm when nothing else is open.
+    Prompt,
 }
 
 #[derive(Default)]
@@ -156,6 +159,10 @@ fn handle(cmd: UiCommand, cx: &mut App) {
                 options::open(0, cx);
             }
         }
+        UiCommand::Alert { text, warning } => prompt::show_alert(text, warning, cx),
+        UiCommand::ConfirmRestartExplorer { text } => {
+            prompt::show_confirm(text, true, cx, |_, _| crate::app::restart_explorer());
+        }
         UiCommand::Quit => {
             tooltip::destroy(cx);
             cx.quit();
@@ -195,11 +202,14 @@ fn bring_to_front(handle: AnyWindowHandle, hwnd: isize, cx: &mut App) {
 /// Brings an already open window to the front. Returns false when none is open.
 fn activate_any(cx: &mut App) -> bool {
     prune(cx);
-    let first = cx
-        .global::<OpenWindows>()
-        .windows
-        .first()
-        .map(|w| (w.1, w.2));
+    let first = {
+        let windows = &cx.global::<OpenWindows>().windows;
+        windows
+            .iter()
+            .find(|w| w.0 != Slot::Prompt)
+            .or_else(|| windows.first())
+            .map(|w| (w.1, w.2))
+    };
     match first {
         Some((handle, hwnd)) => {
             bring_to_front(handle, hwnd, cx);

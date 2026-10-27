@@ -10,6 +10,7 @@
   <a href="https://github.com/emako/TrafficBar/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Anti%20996-blue.svg?style=flat-square" alt="Anti 996 License"></a>
   <a href="https://github.com/emako/TrafficBar/actions?query=workflow:%22release%22"><img src="https://img.shields.io/github/actions/workflow/status/emako/TrafficBar/release.yml?branch=master&label=Release%20CI&logo=github&style=flat-square" alt="Release CI"></a>
   <a href="https://github.com/emako/TrafficBar/releases/latest"><img src="https://img.shields.io/github/release/emako/TrafficBar.svg?style=flat-square" alt="GitHub release"></a>
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows">
 </p>
 
 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) 的任务栏窗口，用 Rust + GPUI 重写：同样常驻任务栏，内存占用比原版低得多。此外支持深色模式、去掉桌面悬浮窗，并可在 Windows 11 开启效率模式进一步压低 CPU 占用。

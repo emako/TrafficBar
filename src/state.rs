@@ -1,6 +1,6 @@
 //! UI-thread application state shared by the Win32 windows and the GPUI views.
 //! Access is single threaded; callers must not hold a borrow across calls that pump messages
-//! (menus, message boxes, plugin dialogs).
+//! (menus and plugin dialogs).
 
 use std::cell::RefCell;
 use std::sync::Arc;

@@ -21,6 +21,7 @@ use super::common::{
     hsla_to_colorref, label, muted, primary_button, radio, row, stepper, thin_vscroll,
 };
 use super::display_settings::{ItemOrderModel, hardware_filter};
+use super::prompt;
 use crate::config::{
     DoubleClickAction, MONITOR_TIME_SPAN_MAX, MONITOR_TIME_SPAN_MIN, MemoryCleanTrigger,
     MemoryDisplay, Runtime, Settings, SpeedUnit,
@@ -258,10 +259,7 @@ impl OptionsView {
                 crate::app::set_auto_run(self.auto_run, self.auto_run_task)
             };
             if let Err(e) = result {
-                crate::app::post(crate::app::MainMsg::MessageBox {
-                    text: e,
-                    warning: true,
-                });
+                prompt::alert(window, cx, e, true);
             }
             self.orig_auto_run = (self.auto_run, self.auto_run_task);
         }
@@ -287,10 +285,7 @@ impl OptionsView {
         self.draft = draft.clone();
         crate::app::apply_settings(draft);
         if !notes.is_empty() {
-            let text = notes.join("\n");
-            window.open_dialog(cx, move |dialog, _, _| {
-                dialog.alert().title(tr("APP_NAME")).child(text.clone())
-            });
+            prompt::alert(window, cx, notes.join("\n"), false);
         }
     }
 
@@ -868,15 +863,34 @@ impl OptionsView {
                         },
                     )),
             )
-            .child(row().child(button(
-                "win11-settings",
-                tr("TXT_WIN11_SETTINGS_BUTTON"),
-                !self.rt.win11_taskbar,
-                {
-                    let m = m.clone();
-                    move |w, cx| Self::update(&m, w, cx, |s, w, cx| s.open_win11(w, cx))
-                },
-            )))
+            .child(
+                row()
+                    .child(button(
+                        "win11-settings",
+                        tr("TXT_WIN11_SETTINGS_BUTTON"),
+                        !self.rt.win11_taskbar,
+                        {
+                            let m = m.clone();
+                            move |w, cx| Self::update(&m, w, cx, |s, w, cx| s.open_win11(w, cx))
+                        },
+                    ))
+                    .child(
+                        Button::new("restart-explorer")
+                            .label(tr_plain("TXT_RESTART_EXPLORER"))
+                            .small()
+                            .outline()
+                            .tooltip(tr("TXT_RESTART_EXPLORER_TIP"))
+                            .on_click(|_, window, cx| {
+                                prompt::confirm(
+                                    window,
+                                    cx,
+                                    tr("IDS_RESTART_EXPLORER_CONFIRM"),
+                                    true,
+                                    |_, _| crate::app::restart_explorer(),
+                                );
+                            }),
+                    ),
+            )
             .child(
                 row()
                     .child(label(tr("TXT_DOUBLE_CLICK_ACTION")))

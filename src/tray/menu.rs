@@ -37,6 +37,7 @@ const ID_RESTART_AS_ADMIN: u32 = 130;
 const ID_RESTART: u32 = 132;
 const ID_EXIT: u32 = 131;
 const ID_RELEASE_MEMORY: u32 = 133;
+const ID_RESTART_EXPLORER: u32 = 134;
 const ID_PLUGIN_OPTIONS: u32 = 140;
 const ID_PLUGIN_DETAIL: u32 = 141;
 const ID_CONNECTION_BASE: u32 = 1000;
@@ -159,6 +160,7 @@ struct MenuModel {
     double_click: DoubleClickAction,
     checking_update: bool,
     elevated: bool,
+    cannot_insert: bool,
     plugin: Option<(usize, String, Vec<(String, bool)>)>,
 }
 
@@ -175,6 +177,7 @@ fn build_model(plugin: Option<usize>) -> Option<MenuModel> {
         double_click: s.settings.taskbar.double_click_action,
         checking_update: s.checking_update,
         elevated: s.rt.elevated,
+        cannot_insert: crate::taskbar::with(|t| t.cannot_insert).unwrap_or(false),
         plugin: plugin.and_then(|i| {
             let p = s.plugins.plugins.get(i)?;
             Some((i, p.name(), s.plugins.commands(i)))
@@ -327,6 +330,14 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             none,
         );
         submenu(menu, help, &trm("TXT_HELP_MENU"), icons.help);
+        if m.cannot_insert {
+            item(
+                menu,
+                ID_RESTART_EXPLORER,
+                &tr("BAR_RESTART_EXPLORER"),
+                icons.explorer,
+            );
+        }
         if m.elevated {
             item(menu, ID_RESTART, &tr("BAR_RESTART"), icons.restart);
         } else {
@@ -478,6 +489,7 @@ fn execute(owner: HWND, id: u32, plugin: Option<usize>) {
         ID_CHECK_UPDATE => app::send_ui(UiCommand::CheckUpdate { silent: false }),
         ID_RESTART_AS_ADMIN => app::restart_as_admin(),
         ID_RESTART => app::restart(),
+        ID_RESTART_EXPLORER => app::restart_explorer(),
         ID_EXIT => app::exit(),
         ID_PLUGIN_OPTIONS => {
             if let Some(p) = plugin {
