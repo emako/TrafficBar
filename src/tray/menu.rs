@@ -252,7 +252,6 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             icons.info,
         );
-        separator(menu);
         append(
             menu,
             ID_TRAFFIC_HISTORY,
@@ -281,12 +280,7 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             false,
             icons.task,
         );
-        item(
-            menu,
-            ID_RELEASE_MEMORY,
-            &trm("TXT_RELEASE_MEMORY"),
-            icons.memory,
-        );
+        separator(menu);
         item(
             menu,
             ID_PLUGIN_MANAGE,
@@ -308,6 +302,13 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
             m.double_click == DoubleClickAction::Options,
             false,
             icons.settings,
+        );
+        separator(menu);
+        item(
+            menu,
+            ID_RELEASE_MEMORY,
+            &trm("TXT_RELEASE_MEMORY"),
+            icons.memory,
         );
         separator(menu);
         let help = CreatePopupMenu().unwrap_or_default();
