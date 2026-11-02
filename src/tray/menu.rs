@@ -121,8 +121,10 @@ fn item(menu: HMENU, id: u32, text: &str, icon: HBITMAP) {
 }
 
 fn separator(menu: HMENU) {
+    // NativeTray: AppendMenu(hMenu, MF_SEPARATOR, 0, string.Empty)
+    let empty = wide("");
     unsafe {
-        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR(empty.as_ptr()));
     }
 }
 
@@ -357,6 +359,11 @@ pub fn show_context_menu(owner: HWND, plugin: Option<usize>) {
                 .enumerate()
                 .take((ID_PLUGIN_COMMAND_MAX - ID_PLUGIN_COMMAND_BASE) as usize)
             {
+                // Match NativeTray: Header "-" / TraySeparator → MF_SEPARATOR.
+                if cmd == "-" {
+                    separator(sub);
+                    continue;
+                }
                 append(
                     sub,
                     ID_PLUGIN_COMMAND_BASE + i as u32,
