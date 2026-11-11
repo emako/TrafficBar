@@ -825,6 +825,17 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             LRESULT(0)
         }
         WM_MOUSEHOVER => {
+            // Hover cancels TrackMouseEvent. Re-arm leave immediately so the tip
+            // still closes when the cursor leaves (mouse may not move again first).
+            let mut tme = TRACKMOUSEEVENT {
+                cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                dwFlags: TME_LEAVE,
+                hwndTrack: hwnd,
+                dwHoverTime: 0,
+            };
+            unsafe {
+                let _ = TrackMouseEvent(&mut tme);
+            }
             let popped = with(|t| t.menu_popped).unwrap_or(false);
             let show = state::try_with(|s| s.settings.taskbar.show_tool_tip).unwrap_or(false);
             if show && !popped {

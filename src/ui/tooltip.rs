@@ -298,6 +298,11 @@ pub fn show(x: i32, y: i32, cx: &mut App) {
     if !ensure_window(cx) {
         return;
     }
+    // ShowTooltip is async; skip if the cursor already left the taskbar.
+    if !cursor_over_taskbar() {
+        hide();
+        return;
+    }
     let lines = tip_lines();
     let info = TIP.with(|t| {
         let mut t = t.borrow_mut();
@@ -313,6 +318,26 @@ pub fn show(x: i32, y: i32, cx: &mut App) {
         cx.notify();
     });
     place(HWND(hwnd as *mut _), (x, y), &lines);
+}
+
+fn cursor_over_taskbar() -> bool {
+    let Some(tb) = crate::taskbar::hwnd() else {
+        return false;
+    };
+    let mut pt = POINT::default();
+    unsafe {
+        if GetCursorPos(&mut pt).is_err() {
+            return false;
+        }
+        let mut hit = WindowFromPoint(pt);
+        while !hit.is_invalid() {
+            if hit == tb {
+                return true;
+            }
+            hit = GetParent(hit).unwrap_or_default();
+        }
+    }
+    false
 }
 
 pub fn refresh(cx: &mut App) {
@@ -348,11 +373,9 @@ pub fn refresh(cx: &mut App) {
 pub fn hide() {
     TIP.with(|t| {
         if let Some(tip) = t.borrow_mut().as_mut() {
-            if tip.visible {
-                tip.visible = false;
-                unsafe {
-                    let _ = ShowWindow(HWND(tip.hwnd as *mut _), SW_HIDE);
-                }
+            tip.visible = false;
+            unsafe {
+                let _ = ShowWindow(HWND(tip.hwnd as *mut _), SW_HIDE);
             }
         }
     });
