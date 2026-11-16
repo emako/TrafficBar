@@ -116,7 +116,9 @@ Copy-Item -LiteralPath $exe -Destination (Join-Path $packDir $exeName)
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw ".NET SDK 10+ (dotnet) is required"
 }
-& dotnet tool update -g vpk
+# Pin the prerelease that embeds xdialog 4.1.2. Stable vpk stays on xdialog 3.
+# The exact pre-release version is enough; this SDK rejects --prerelease together with --version.
+& dotnet tool update -g vpk --version 1.3.39-g8d2844f
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet tool update -g vpk failed with exit code $LASTEXITCODE"
 }
