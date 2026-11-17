@@ -232,6 +232,22 @@ pub fn ensure_window(cx: &mut App) -> bool {
             ex | (WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST).0
                 as isize,
         );
+        // GPUI creates Windows windows with CW_USEDEFAULT and only applies
+        // `window_bounds` on first show when `show: false`. Park this keep-alive
+        // off-screen ourselves so a leaked ShowWindow cannot flash a ~1280×739 blank.
+        let _ = SetWindowPos(
+            h,
+            Some(HWND_TOPMOST),
+            -2000,
+            -2000,
+            200,
+            60,
+            SWP_NOACTIVATE | SWP_HIDEWINDOW,
+        );
+        // The process's first ShowWindow ignores its argument and uses STARTUPINFO
+        // (usually SW_SHOWNORMAL). Burn that here while we are off-screen, then hide.
+        let _ = ShowWindow(h, SW_HIDE);
+        let _ = ShowWindow(h, SW_HIDE);
     }
     TIP.with(|t| {
         *t.borrow_mut() = Some(Tip {
@@ -299,8 +315,9 @@ pub fn show(x: i32, y: i32, cx: &mut App) {
         return;
     }
     // ShowTooltip is async; skip if the cursor already left the taskbar.
+    // Do not call hide() here: the process's first ShowWindow(SW_HIDE) is
+    // rewritten by STARTUPINFO to SW_SHOWNORMAL and would reveal the keep-alive.
     if !cursor_over_taskbar() {
-        hide();
         return;
     }
     let lines = tip_lines();
@@ -373,9 +390,14 @@ pub fn refresh(cx: &mut App) {
 pub fn hide() {
     TIP.with(|t| {
         if let Some(tip) = t.borrow_mut().as_mut() {
-            tip.visible = false;
-            unsafe {
-                let _ = ShowWindow(HWND(tip.hwnd as *mut _), SW_HIDE);
+            // Only HideWindow when we actually showed the tip. Calling
+            // ShowWindow(SW_HIDE) as the process's first ShowWindow lets
+            // STARTUPINFO force SW_SHOWNORMAL and pops the blank keep-alive.
+            if tip.visible {
+                tip.visible = false;
+                unsafe {
+                    let _ = ShowWindow(HWND(tip.hwnd as *mut _), SW_HIDE);
+                }
             }
         }
     });
