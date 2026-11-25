@@ -118,36 +118,68 @@ jobs:
           "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "generate_notes=$generateNotes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          # multiline body for softprops
+          # multiline body for gh release --notes
           "body<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           $body | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      # Rolling `latest` must be recreated: updating an existing release keeps the
-      # old tag object, so target_commitish alone would not move `latest` forward.
-      - name: Delete existing latest release and tag
-        if: steps.meta.outputs.tag == 'latest'
+      # Drop any leftover draft/partial release for this tag (failed softprops
+      # uploads leave drafts that break the next create). Rolling `latest` must
+      # also recreate the tag object so target_commitish actually moves forward.
+      - name: Delete existing release for tag
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          # Prefer deleting the release (and its tag). Ignore "not found".
-          gh release delete latest --yes --cleanup-tag 2>&1 | ForEach-Object { Write-Host $_ }
-          # If only a dangling tag remains (no release), drop the ref too.
-          gh api --method DELETE "repos/$($env:GITHUB_REPOSITORY)/git/refs/tags/latest" 2>&1 |
-            ForEach-Object { Write-Host $_ }
+          if ($env:TAG -eq "latest") {
+            gh release delete latest --yes --cleanup-tag 2>&1 | ForEach-Object { Write-Host $_ }
+            gh api --method DELETE "repos/$($env:GITHUB_REPOSITORY)/git/refs/tags/latest" 2>&1 |
+              ForEach-Object { Write-Host $_ }
+          } else {
+            # Keep the version git tag; only remove the release (incl. drafts).
+            gh release delete $env:TAG --yes 2>&1 | ForEach-Object { Write-Host $_ }
+          }
           exit 0
 
+      # softprops/action-gh-release parallel-uploads ~16 assets and has been
+      # aborting mid-flight on windows-latest (Node 24), leaving draft releases.
+      # `gh release create` uploads sequentially and surfaces real errors.
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ steps.meta.outputs.release_name }}
-          body: ${{ steps.meta.outputs.body }}
-          draft: false
-          prerelease: ${{ steps.meta.outputs.prerelease }}
-          make_latest: ${{ steps.meta.outputs.make_latest }}
-          generate_release_notes: ${{ steps.meta.outputs.generate_notes }}
-          fail_on_unmatched_files: true
-          files: target/publish/*
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_NAME: ${{ steps.meta.outputs.release_name }}
+          BODY: ${{ steps.meta.outputs.body }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          MAKE_LATEST: ${{ steps.meta.outputs.make_latest }}
+          GENERATE_NOTES: ${{ steps.meta.outputs.generate_notes }}
+          TARGET: ${{ github.sha }}
+        run: |
+          $files = @(Get-ChildItem -LiteralPath "target\publish" -File | ForEach-Object { $_.FullName })
+          if ($files.Count -eq 0) {
+            throw "No files in target\publish"
+          }
+          Write-Host ("Publishing $($files.Count) assets to tag $($env:TAG):")
+          $files | ForEach-Object { Write-Host ("  " + [System.IO.Path]::GetFileName($_)) }
+
+          $args = @(
+            "release", "create", $env:TAG
+            "--title", $env:RELEASE_NAME
+            "--target", $env:TARGET
+          )
+          if ($env:PRERELEASE -eq "true") { $args += "--prerelease" }
+          if ($env:MAKE_LATEST -eq "true") { $args += "--latest" } else { $args += "--latest=false" }
+          if ($env:GENERATE_NOTES -eq "true") {
+            $args += "--generate-notes"
+          } else {
+            $args += "--notes"
+            $args += $env:BODY
+          }
+          $args += $files
+
+          & gh @args
+          if ($LASTEXITCODE -ne 0) {
+            throw "gh release create failed with exit code $LASTEXITCODE"
+          }
